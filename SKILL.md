@@ -37,6 +37,7 @@ Plastic Surgery is the visual counterpart to `surgical-implementation`: where im
 - `scripts/preflight_visual_lint.py`: Zero-mutation static scanner detecting layout-thrashing animations, un-budgeted blurs, numeric jitter, and reduced-motion gaps.
 - `references/tactile_tokens_and_surfaces.md`: Perceptual `oklch()` color system, APCA/WCAG contrast proofs, specular top-edge insets, sub-perceptual OLED dithering, and 6-state tactile button specification.
 - `references/kinetic_physics_and_springs.md`: Exact `expDecay()` stability proofs, dynamic sub-stepped symplectic spring integrators, analytical harmonic oscillators, and frame budget tables.
+- `references/preflight_scanner_notes.md`: Known false positives of the linter (CSS variable names, GLSL uniforms, timer identifiers) and how to triage them before acting.
 
 > [!NOTE]
 > **Sandbox Portability**: In environments where `.py` or `.sh` script execution is restricted (e.g. cloud chat sandboxes), all audit checks can be performed deterministically via manual inspection using the checklists in this specification and the bundled reference docs.
