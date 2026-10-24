@@ -1,16 +1,14 @@
 ---
 name: plastic-surgery
-description: "Use when performing a precision UI/GUI/Dashboard visual overhaul (\"Plastic Surgery\") that maximizes visual appeal, tactile buttons, animations, rendering smoothness, and workspace-themed modern techniques without breaking business logic."
-version: 1.1.0
-author: "Fenrie (Lea's AI wolf), TeacherEvan, Hermes Agent"
+description: "Use when doing a visual UI overhaul without logic drift."
+version: 1.2.0
+author: "TeacherEvan, Fenrie (Lea's AI wolf), Hermes Agent"
 license: MIT
 platforms: [linux, macos, windows]
-category: creative
-tags: [ui, gui, dashboard, design, visual, accessibility, animations, rendering, plastic-surgery, workspace-theme, tactile-design]
 metadata:
   hermes:
     category: creative
-    tags: [visual, ui-overhaul, design-system, assessment, creative, tactile-design]
+    tags: [visual, ui-overhaul, design-system, tactile-design, accessibility, animation]
     requires_tools: [read_file, search_files, browser, vision, terminal]
     related_skills: [surgical-orchestration, surgical-implementation, surgical-audit]
 ---
@@ -18,6 +16,16 @@ metadata:
 # Plastic Surgery — Autonomous UI, GUI & Dashboard Visual Maximizer
 
 Execute a precision **UI / GUI / Dashboard visual overhaul** ("Plastic Surgery") that maximizes visual appeal, tactile button physics, animation smoothness, and workspace-themed modern techniques using a strict **Alignment Gate -> Collaboration State -> Investigate -> Plan -> Implement -> Verify** workflow — while guaranteeing **100% zero functional regression**.
+
+---
+
+## When to Use
+
+- The user says a UI looks flat, dated, cheap, or "not premium" and wants it lifted without touching behaviour.
+- You need a measurable visual pass: tactile button states, motion physics, contrast, numeric jitter, reduced-motion coverage.
+- A dashboard, settings surface, or game HUD needs polish before a demo or release.
+
+**Don't use for:** changing business logic, adding features, restructuring state, or fixing a functional bug — use `surgical-implementation` for that. If the complaint is "it stutters" and the cause is a hot loop rather than the visual layer, use `surgical-audit` first; this skill will happily polish a canvas that is still dropping frames.
 
 ---
 
@@ -303,9 +311,13 @@ export function stepSpringSubstepped(
   damping = 28,
   dt = 1 / 60
 ): [number, number] {
-  const safeDt = Math.max(dt, 0);
+  // Clamp ELAPSED TIME, not the step count. A capped step count lets subDt grow
+  // past the explicit-Euler stability bound (h < 2/ω ≈ 0.107 s at these
+  // defaults) after a tab switch or resume, and the integrator diverges.
+  const MAX_FRAME_DT = 0.1; // 10 fps floor; beyond this the frame is a resume, not a frame
+  const safeDt = Math.min(Math.max(dt, 0), MAX_FRAME_DT);
   const MAX_SUB_DT = 0.00833; // 120Hz precision ceiling
-  const steps = Math.max(1, Math.min(Math.ceil(safeDt / MAX_SUB_DT), 24));
+  const steps = Math.max(1, Math.ceil(safeDt / MAX_SUB_DT));
   const subDt = safeDt / steps;
 
   for (let i = 0; i < steps; i++) {
@@ -340,3 +352,26 @@ Before concluding the task, run the automated linter (or execute manual verifica
 - [ ] **VRAM & Stacking Safe**: No static `translate3d(0,0,0)` on resting buttons; maximum `2` overlapping `backdrop-filter: blur()` layers (`<= 16px` radius).
 - [ ] **Zero Numeric Jitter**: `font-variant-numeric: tabular-nums` (or fixed-width glyph layout in native/game GUIs) applied to all live metrics, timers, and tables.
 - [ ] **Reduced-Motion Guard**: `@media (prefers-reduced-motion: reduce)` collapses spatial translations to `0.01ms` while preserving gentle indicator/spinner animations.
+
+---
+
+## Pitfalls
+
+- **A capped sub-step count is not stability.** Any spring integrator must clamp the *frame delta*; a `Math.min(steps, N)` guard silently grows `subDt` and diverges after a tab resume. Clamp `dt` at the loop, then sub-step as finely as needed.
+- **The preflight linter only exits non-zero with `--fail-on`.** A plain run prints a score and exits 0 — a CI job wired to the bare command will always be green.
+- **`backdrop-filter` cost is per-layer, not per-radius.** Two 16 px blurs stacked cost more than one 40 px blur; the linter's 16 px rule is a proxy, not a budget proof.
+- **`pointer: coarse` is not the same as "mobile".** Hybrid laptops report a fine pointer and a touchscreen; the 44 px touch target must be driven by `any-pointer: coarse` if both matter.
+- **Preserved bindings are the contract.** Renaming a `data-testid`, an `aria-*` attribute, or a form `name` is a functional regression even when the page looks perfect.
+- **Do not "fix" a stutter by adding `will-change`.** A permanent compositor layer costs VRAM on every element that has it; scope it to the interaction and remove it after.
+- **Contrast claims from `oklch()` have to be measured.** Convert to sRGB and compute APCA/WCAG against the actual composited background, including gradients and overlays — not the token's nominal value.
+
+## Verification
+
+Run the linter in gate mode and confirm zero HIGH findings:
+
+```bash
+python3 "${HERMES_SKILL_DIR:-$HOME/.hermes/skills/plastic-surgery}/scripts/preflight_visual_lint.py" . --fail-on high
+echo "exit=$?"   # 0 = clean, 1 = at least one HIGH defect
+```
+
+Then walk the Phase 4 checklist above; every box must be checked with a `file_path:line` reference, not from memory.

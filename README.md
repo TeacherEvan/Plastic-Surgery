@@ -68,24 +68,12 @@ cp -r references scripts .agents/skills/plastic-surgery/
 
 ---
 
-## Skill Metadata (Standard Frontmatter)
+## Skill Metadata
 
-```yaml
-name: plastic-surgery
-description: "Use when performing a precision UI/GUI/Dashboard visual overhaul (\"Plastic Surgery\") that maximizes visual appeal, tactile buttons, animations, rendering smoothness, and workspace-themed modern techniques without breaking business logic."
-version: 1.1.0
-author: "Fenrie (Lea's AI wolf), TeacherEvan, Hermes Agent"
-license: MIT
-platforms: [linux, macos, windows]
-category: creative
-tags: [ui, gui, dashboard, design, visual, accessibility, animations, rendering, plastic-surgery, workspace-theme, tactile-design]
-metadata:
-  hermes:
-    category: creative
-    tags: [visual, ui-overhaul, design-system, assessment, creative, tactile-design]
-    requires_tools: [read_file, search_files, browser, vision, terminal]
-    related_skills: [surgical-orchestration, surgical-implementation, surgical-audit]
-```
+The frontmatter in [`SKILL.md`](./SKILL.md) is the single source of truth for `name`,
+`description`, `version`, `author`, `platforms`, and `metadata.hermes`. It is deliberately
+not duplicated here — a second copy is how the previous `description` and `tags` drifted
+out of sync with the skill the loader actually reads.
 
 ---
 

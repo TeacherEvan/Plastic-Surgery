@@ -58,6 +58,9 @@ EXCLUDED_DIRS = {
     "coverage",
 }
 
+# Keep in sync with SKILL.md `version:` — the linter advertises it.
+LINTER_VERSION = "1.2.0"
+
 SEVERITY_WEIGHTS = {
     "HIGH": 10,
     "MEDIUM": 5,
@@ -79,9 +82,10 @@ class VisualAuditor:
         self.root_dir = os.path.abspath(root_dir)
         self.files_scanned = 0
         self.total_loc = 0
+        self.unreadable = 0
         self.defects: List[Dict[str, Any]] = []
         self.has_reduced_motion = False
-        self.has_tabular_nums = False
+        self.has_motion = False
 
     def scan(self) -> Dict[str, Any]:
         for root, dirs, files in os.walk(self.root_dir):
@@ -92,8 +96,10 @@ class VisualAuditor:
                     full_path = os.path.join(root, file)
                     self._scan_file(full_path, ext)
 
-        # Cross-file check: if animations are present but no prefers-reduced-motion exists
-        if self.files_scanned > 0 and not self.has_reduced_motion and any(d["code"] == "LAYOUT_THRASHING_ANIMATION" for d in self.defects):
+        # Cross-file check: ANY declared transition/animation without a
+        # reduced-motion guard is a failure — gating this on layout-thrashing
+        # defects missed the common case (transform/opacity-only animation).
+        if self.files_scanned > 0 and self.has_motion and not self.has_reduced_motion:
             self.defects.append({
                 "file": "Global Stylesheet / Media Queries",
                 "line": 1,
@@ -113,6 +119,7 @@ class VisualAuditor:
         return {
             "target_dir": self.root_dir,
             "files_scanned": self.files_scanned,
+            "unreadable_files": self.unreadable,
             "total_loc": self.total_loc,
             "visual_health_score": score,
             "defects_count": len(self.defects),
@@ -123,7 +130,18 @@ class VisualAuditor:
         try:
             with open(path, "r", encoding="utf-8", errors="ignore") as f:
                 content = f.read()
-        except Exception:
+        except OSError as exc:
+            # Count it: a run that could not read files must not report a clean
+            # bill of health.
+            self.unreadable += 1
+            self.defects.append({
+                "file": os.path.relpath(path, self.root_dir),
+                "line": 0,
+                "code": "UNREADABLE_SOURCE",
+                "severity": "MEDIUM",
+                "message": f"Could not read file: {exc}",
+                "fix": "Fix file permissions or exclude the path explicitly.",
+            })
             return
 
         self.files_scanned += 1
@@ -133,8 +151,8 @@ class VisualAuditor:
 
         if "prefers-reduced-motion" in content:
             self.has_reduced_motion = True
-        if RE_TABULAR_NUMS.search(content):
-            self.has_tabular_nums = True
+        if re.search(r"\b(?:transition|animation)\s*:", content, re.IGNORECASE):
+            self.has_motion = True
 
         for idx, line in enumerate(lines, 1):
             stripped = line.strip()
@@ -200,19 +218,27 @@ class VisualAuditor:
 # CLI Entrypoint
 # ---------------------------------------------------------------------------
 
-def main():
+def main() -> int:
     parser = argparse.ArgumentParser(description="Zero-mutation UI/GUI visual linter.")
     parser.add_argument("target_dir", nargs="?", default=".", help="Target repository or UI directory")
     parser.add_argument("--out", help="Write JSON audit report to file")
+    parser.add_argument(
+        "--fail-on",
+        choices=["high", "medium", "low"],
+        default=None,
+        help="Exit 1 when a defect at or above this severity is present (CI gate).",
+    )
     args = parser.parse_args()
 
     auditor = VisualAuditor(args.target_dir)
     results = auditor.scan()
 
     print(f"\n========================================================")
-    print(f" Plastic Surgery Preflight Visual Linter (v1.1.0)")
+    print(f" Plastic Surgery Preflight Visual Linter (v{LINTER_VERSION})")
     print(f" Target: {results['target_dir']}")
     print(f" Files Scanned: {results['files_scanned']} | Total LOC: {results['total_loc']}")
+    if results["unreadable_files"]:
+        print(f" Unreadable Files: {results['unreadable_files']} (counted as MEDIUM defects)")
     print(f" Visual Health Score: {results['visual_health_score']} / 100")
     print(f" Detected Defects: {results['defects_count']}")
     print(f"========================================================\n")
@@ -233,5 +259,13 @@ def main():
             json.dump(results, f, indent=2)
         print(f"\nReport saved to: {args.out}")
 
+    if args.fail_on:
+        threshold = SEVERITY_ORDER[args.fail_on.upper()]
+        worst = min((SEVERITY_ORDER[d["severity"]] for d in results["defects"]), default=99)
+        if worst <= threshold:
+            print(f"GATE FAILED: defect at or above {args.fail_on.upper()} present.")
+            return 1
+    return 0
+
 if __name__ == "__main__":
-    main()
+    raise SystemExit(main())
