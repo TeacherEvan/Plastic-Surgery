@@ -69,3 +69,4 @@ echo "[install_plastic_surgery] Done. The skill is now indexed by Nous Hermes Ag
 echo "[install_plastic_surgery] OpenCode:    copy into ~/.config/opencode/skills/plastic-surgery/"
 echo "[install_plastic_surgery] Antigravity: copy into ~/.config/antigravity/skills/plastic-surgery/ or .agents/skills/plastic-surgery/"
 echo "[install_plastic_surgery] Cursor:      copy into ~/.cursor/skills/plastic-surgery/"
+echo "[install_plastic_surgery] VS Code:     copy into ~/.copilot/skills/plastic-surgery/  (GitHub Copilot Agent Skills, personal scope)"
