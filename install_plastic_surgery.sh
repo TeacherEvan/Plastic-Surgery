@@ -3,8 +3,10 @@
 # install_plastic_surgery.sh — One-command installer for the plastic-surgery skill.
 #
 # Deploys the complete skill directory:
-#   (SKILL.md, scripts/preflight_visual_lint.py,
-#    references/tactile_tokens_and_surfaces.md, references/kinetic_physics_and_springs.md)
+#   (SKILL.md,
+#    scripts/preflight_visual_lint.py, scripts/preflight_gltf_budget.py,
+#    references/tactile_tokens_and_surfaces.md, references/kinetic_physics_and_springs.md,
+#    references/threejs_3d_asset_pipeline.md, references/preflight_scanner_notes.md)
 # into ~/.hermes/skills/plastic-surgery/ on Linux, macOS, WSL, or Termux PRoot.
 #
 # Usage:
@@ -46,9 +48,15 @@ fetch_file "$HERMES_SKILL_DIR/SKILL.md" "${SCRIPT_DIR:-$RAW_BASE}/SKILL.md"
 fetch_file "$HERMES_SKILL_DIR/scripts/preflight_visual_lint.py" "${SCRIPT_DIR:-$RAW_BASE}/scripts/preflight_visual_lint.py"
 chmod +x "$HERMES_SKILL_DIR/scripts/preflight_visual_lint.py"
 
+# glTF / GLB asset budget auditor
+fetch_file "$HERMES_SKILL_DIR/scripts/preflight_gltf_budget.py" "${SCRIPT_DIR:-$RAW_BASE}/scripts/preflight_gltf_budget.py"
+chmod +x "$HERMES_SKILL_DIR/scripts/preflight_gltf_budget.py"
+
 # Reference documentation
 fetch_file "$HERMES_SKILL_DIR/references/tactile_tokens_and_surfaces.md" "${SCRIPT_DIR:-$RAW_BASE}/references/tactile_tokens_and_surfaces.md"
 fetch_file "$HERMES_SKILL_DIR/references/kinetic_physics_and_springs.md" "${SCRIPT_DIR:-$RAW_BASE}/references/kinetic_physics_and_springs.md"
+fetch_file "$HERMES_SKILL_DIR/references/threejs_3d_asset_pipeline.md" "${SCRIPT_DIR:-$RAW_BASE}/references/threejs_3d_asset_pipeline.md"
+fetch_file "$HERMES_SKILL_DIR/references/preflight_scanner_notes.md" "${SCRIPT_DIR:-$RAW_BASE}/references/preflight_scanner_notes.md"
 
 chmod 755 "$HERMES_SKILL_DIR/scripts"
 

@@ -46,6 +46,79 @@ RE_FIXED_LERP_FN = re.compile(
     re.IGNORECASE,
 )
 
+# ---------------------------------------------------------------------------
+# Three.js / WebGL 3D patterns
+# ---------------------------------------------------------------------------
+
+# setPixelRatio(devicePixelRatio) without a clamp
+RE_SET_PIXEL_RATIO = re.compile(r"setPixelRatio\s*\(\s*([^)]*)\)")
+RE_PIXEL_RATIO_UNCLAMPED = re.compile(r"devicePixelRatio", re.IGNORECASE)
+RE_PIXEL_RATIO_CLAMPED = re.compile(r"Math\.(?:min|max)|clamp", re.IGNORECASE)
+
+# Zero-argument scratch-object allocation (new THREE.Vector3()) — GC pressure in a loop
+RE_THREE_SCRATCH_ALLOC = re.compile(
+    r"new\s+(?:THREE\.)?(Vector[234]|Quaternion|Euler|Color|Matrix4)\s*\(\s*\)"
+)
+
+# Resources that own GPU memory and therefore need an explicit dispose()
+RE_THREE_DISPOSE = re.compile(r"\.dispose\s*\(")
+RE_THREE_RENDER_LOOP = re.compile(r"requestAnimationFrame|setAnimationLoop|onBeforeRender")
+RE_THREE_CAST_SHADOW = re.compile(r"castShadow\s*=\s*true")
+RE_THREE_SHADOW_BIAS = re.compile(r"\.bias\s*=|normalBias")
+# A light this file creates — only its creator owns the shadow bias.
+RE_THREE_LIGHT_CREATION = re.compile(
+    r"new\s+(?:THREE\.)?(DirectionalLight|PointLight|SpotLight|HemisphereLight"
+    r"|RectAreaLight|SunLight)\s*\("
+)
+RE_THREE_RENDERER = re.compile(r"new\s+(?:THREE\.)?WebGLRenderer\s*\(")
+RE_THREE_OUTPUT_COLOR_SPACE = re.compile(r"outputColorSpace")
+# Only an *instantiated* loader matters. GLTFExporter and friends share the
+# substring "GLTF" but never fetch a compressed payload.
+RE_THREE_GLTF_LOADER = re.compile(r"new\s+(?:THREE\.)?GLTFLoader\s*\(")
+RE_THREE_DECODERS = re.compile(r"DRACOLoader|MeshoptDecoder|KTX2Loader")
+RE_THREE_RESIZE = re.compile(
+    r"addEventListener\s*\(\s*['\"]resize['\"]|ResizeObserver|\.setSize\s*\("
+)
+# A file is treated as three.js code only if it actually references the library
+RE_THREE_PROJECT = re.compile(
+    r"from\s+['\"]three(?:/[^'\"]*)?['\"]|require\s*\(\s*['\"]three['\"]\s*\)"
+    r"|\bTHREE\.",
+    re.IGNORECASE,
+)
+
+# --- Scope analysis (so a rule can tell module scope from a frame callback) ---
+RE_CONSTRUCTOR = re.compile(r"\bconstructor\s*\(")
+RE_STRING_OR_COMMENT = re.compile(
+    r"//.*$|/\*.*?\*/|'(?:\\.|[^'\\])*'|\"(?:\\.|[^\"\\])*\"|`(?:\\.|[^`\\])*`",
+    re.DOTALL,
+)
+# Identifiers that open a control-flow block, not a function body.
+BLOCK_KEYWORDS = {
+    "if", "for", "while", "switch", "catch", "do", "try", "finally", "else",
+    "return", "typeof", "new", "delete", "void", "await", "yield", "case",
+    "default", "in", "of", "super", "this", "with", "enum", "const", "let",
+    "var", "function", "import", "export",
+}
+RE_METHOD_HEADER = re.compile(r"([A-Za-z_$][\w$]*)\s*\([^()]*\)\s*$")
+RE_BLOCK_COMMENT = re.compile(r"/\*.*?\*/", re.DOTALL)
+RE_LINE_COMMENT = re.compile(r"//.*$")
+
+
+def blank_block_comments(text: str) -> str:
+    """Remove /* ... */ blocks while PRESERVING line numbers.
+
+    A multi-line JSDoc example containing `castShadow = true` is documentation,
+    not code, and must not trip a rule.
+    """
+    return RE_BLOCK_COMMENT.sub(
+        lambda m: "\n" * m.group(0).count("\n"), text
+    )
+
+
+JS_EXTS = {".js", ".jsx", ".ts", ".tsx"}
+
+
+
 EXCLUDED_DIRS = {
     "node_modules",
     ".git",
@@ -59,7 +132,7 @@ EXCLUDED_DIRS = {
 }
 
 # Keep in sync with SKILL.md `version:` — the linter advertises it.
-LINTER_VERSION = "1.2.0"
+LINTER_VERSION = "1.3.0"
 
 SEVERITY_WEIGHTS = {
     "HIGH": 10,
@@ -154,6 +227,15 @@ class VisualAuditor:
         if re.search(r"\b(?:transition|animation)\s*:", content, re.IGNORECASE):
             self.has_motion = True
 
+        # Three.js context: only JS/TS-family files that actually reference three.
+        is_three = ext in JS_EXTS and bool(RE_THREE_PROJECT.search(content))
+        has_render_loop = bool(RE_THREE_RENDER_LOOP.search(content))
+        # Comment-free view of the file: comments are documentation, and braces
+        # inside them would corrupt the scope map.
+        code_lines = [RE_STRING_OR_COMMENT.sub("", l) for l in blank_block_comments(content).splitlines()]
+        # Scope map lets the rules tell module scope from a per-frame callback.
+        scope_map = self._scope_map(code_lines) if is_three else []
+
         for idx, line in enumerate(lines, 1):
             stripped = line.strip()
             # Ignore comments
@@ -213,6 +295,197 @@ class VisualAuditor:
                             "message": f"Dynamic counter/metric readout element may lack tabular-nums: '{line.strip()[:60]}'.",
                             "fix": "Apply font-variant-numeric: tabular-nums; to prevent horizontal number oscillation."
                         })
+
+            # 5. Three.js: unclamped device pixel ratio (fill-rate collapse on 3x phones)
+            if is_three and RE_SET_PIXEL_RATIO.search(line):
+                m_pr = RE_SET_PIXEL_RATIO.search(line)
+                arg = m_pr.group(1) if m_pr else ""
+                if RE_PIXEL_RATIO_UNCLAMPED.search(arg) and not RE_PIXEL_RATIO_CLAMPED.search(arg):
+                    self.defects.append({
+                        "file": rel_path,
+                        "line": idx,
+                        "code": "THREE_UNCLAMPED_PIXEL_RATIO",
+                        "severity": "HIGH",
+                        "message": f"setPixelRatio() uses the raw devicePixelRatio without a clamp: '{line.strip()[:70]}'.",
+                        "fix": "Clamp the buffer scale: renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2))."
+                    })
+
+            # 6. Three.js: zero-argument scratch allocation inside a render-loop file
+            if is_three and has_render_loop and RE_THREE_SCRATCH_ALLOC.search(code_lines[idx - 1]):
+                enclosing, _innermost = scope_map[idx - 1]
+                # Module-scope scratch objects are the idiomatic three.js pattern
+                # (allocated once, reused every frame) — never flag them.
+                # Class fields allocate once per instance, not per frame.
+                # Constructor bodies allocate once.
+                in_function = any(k in ("func", "ctor") for k in enclosing)
+                in_ctor = "ctor" in enclosing
+                if not in_function or in_ctor:
+                    continue
+                self.defects.append({
+                    "file": rel_path,
+                    "line": idx,
+                    "code": "THREE_PER_FRAME_ALLOCATION",
+                    "severity": "MEDIUM",
+                    "message": f"Scratch object allocated with no arguments inside a function: '{code_lines[idx - 1].strip()[:70]}'. In a per-frame callback this is GC pressure.",
+                    "fix": "Hoist reusable scratch vectors/quaternions to module scope and mutate them in place (v.copy(...), q.setFromEuler(...))."
+                })
+
+        # ---- Three.js file-level checks (need whole-file context) ----
+        if is_three:
+            self._scan_three_file(rel_path, code_lines)
+
+    @staticmethod
+    def _classify_block(header: str) -> str:
+        """Classify the block a header opens: 'class' | 'ctor' | 'func' | 'block'."""
+        h = header.strip()
+        if not h:
+            return "block"
+        if re.search(r"\bclass\b", h):
+            return "class"
+        if RE_CONSTRUCTOR.search(h):
+            return "ctor"
+        if re.search(r"\bfunction\b", h) or "=>" in h:
+            return "func"
+        # Method shorthand: `render() {`, `obj.update() {`, `get size() {`
+        m = RE_METHOD_HEADER.search(h)
+        if m and m.group(1) not in BLOCK_KEYWORDS:
+            return "func"
+        return "block"
+
+    @staticmethod
+    def _scope_map(lines: List[str]):
+        """Return [(stack_snapshot, innermost_kind)] per line.
+
+        stack_snapshot is the list of enclosing block kinds at the START of the
+        line ('class', 'ctor', 'func', 'block'). innermost_kind is the kind of
+        the innermost enclosing block, or None at module scope.
+
+        Brace matching is parenthesis-aware: a destructuring parameter list
+        such as `constructor( capacity, { shadow } ) {` opens TWO braces, and
+        only the paren-depth-0 one is the constructor body.
+        """
+        stack: List[str] = []
+        out: List[tuple] = []
+        for line in lines:
+            code = RE_STRING_OR_COMMENT.sub("", line)
+
+            # Pass 1 — locate the block-opening brace (first '{' at paren depth 0)
+            # and the header that precedes it.
+            idx_brace = -1
+            paren = 0
+            for i, ch in enumerate(code):
+                if ch in "([":
+                    paren += 1
+                elif ch in ")]":
+                    paren -= 1
+                elif ch == "{" and paren == 0:
+                    idx_brace = i
+                    break
+            header = code[:idx_brace] if idx_brace >= 0 else code
+            kind = VisualAuditor._classify_block(header)
+
+            out.append((list(stack), stack[-1] if stack else None))
+
+            # Pass 2 — push/pop every brace, tagging the body brace with `kind`
+            paren = 0
+            body_pushed = False
+            for ch in code:
+                if ch in "([":
+                    paren += 1
+                elif ch in ")]":
+                    paren -= 1
+                elif ch == "{":
+                    if paren == 0 and not body_pushed:
+                        stack.append(kind)
+                        body_pushed = True
+                    else:
+                        stack.append("block")
+                elif ch == "}":
+                    if stack:
+                        stack.pop()
+        return out
+
+    def _scan_three_file(self, rel_path: str, code_lines: List[str]):
+        """Three.js hazards that can only be judged with whole-file context.
+
+        `code_lines` is already stripped of comments and string literals.
+        """
+        code = "\n".join(code_lines)
+
+        # 5a. A renderer created and never disposed — the renderer is unambiguously
+        # owned by the file that constructs it.
+        if RE_THREE_RENDERER.search(code) and not RE_THREE_DISPOSE.search(code):
+            for idx, line in enumerate(code_lines, 1):
+                if RE_THREE_RENDERER.search(line):
+                    self.defects.append({
+                        "file": rel_path,
+                        "line": idx,
+                        "code": "THREE_MISSING_DISPOSE",
+                        "severity": "MEDIUM",
+                        "message": "A WebGLRenderer is created here but the file never calls .dispose() — the WebGL context and its GPU resources leak on teardown.",
+                        "fix": "Call renderer.dispose() (and renderer.forceContextLoss() in dev) when the owning view unmounts."
+                    })
+                    break
+
+        # 5b. Shadows enabled on a light this file creates, without bias tuning.
+        # Only the file that CREATES the light owns its bias — a loader that sets
+        # castShadow on imported meshes does not.
+        if (RE_THREE_LIGHT_CREATION.search(code)
+                and RE_THREE_CAST_SHADOW.search(code)
+                and not RE_THREE_SHADOW_BIAS.search(code)):
+            for idx, line in enumerate(code_lines, 1):
+                if RE_THREE_CAST_SHADOW.search(line):
+                    self.defects.append({
+                        "file": rel_path,
+                        "line": idx,
+                        "code": "THREE_MISSING_SHADOW_BIAS",
+                        "severity": "MEDIUM",
+                        "message": "This file creates a light and enables castShadow but sets no shadow.bias / shadow.normalBias — shadow acne and peter-panning are likely.",
+                        "fix": "Tune the light: light.shadow.bias = -0.0004 and light.shadow.normalBias = 0.02 (scale normalBias to your world units)."
+                    })
+                    break
+
+        # 5c. Renderer without an explicit output colour space
+        if RE_THREE_RENDERER.search(code) and not RE_THREE_OUTPUT_COLOR_SPACE.search(code):
+            for idx, line in enumerate(code_lines, 1):
+                if RE_THREE_RENDERER.search(line):
+                    self.defects.append({
+                        "file": rel_path,
+                        "line": idx,
+                        "code": "THREE_UNSET_OUTPUT_COLOR_SPACE",
+                        "severity": "LOW",
+                        "message": "WebGLRenderer created without an explicit outputColorSpace setting.",
+                        "fix": "Set renderer.outputColorSpace = THREE.SRGBColorSpace explicitly (default since r152, but pinning it prevents silent regressions)."
+                    })
+                    break
+
+        # 5d. An instantiated GLTFLoader with no Draco / meshopt / KTX2 decoder.
+        if RE_THREE_GLTF_LOADER.search(code) and not RE_THREE_DECODERS.search(code):
+            for idx, line in enumerate(code_lines, 1):
+                if RE_THREE_GLTF_LOADER.search(line):
+                    self.defects.append({
+                        "file": rel_path,
+                        "line": idx,
+                        "code": "THREE_UNCOMPRESSED_GLTF",
+                        "severity": "LOW",
+                        "message": "GLTFLoader is instantiated with no Draco / meshopt / KTX2 decoder — payloads stay 3-10x larger than necessary.",
+                        "fix": "Wire decoders: loader.setDRACOLoader(draco).setMeshoptDecoder(MeshoptDecoder) and ktx2.detectSupport(renderer)."
+                    })
+                    break
+
+        # 5e. Renderer without resize handling
+        if RE_THREE_RENDERER.search(code) and not RE_THREE_RESIZE.search(code):
+            for idx, line in enumerate(code_lines, 1):
+                if RE_THREE_RENDERER.search(line):
+                    self.defects.append({
+                        "file": rel_path,
+                        "line": idx,
+                        "code": "THREE_MISSING_RESIZE_HANDLER",
+                        "severity": "LOW",
+                        "message": "WebGLRenderer created with no resize listener or ResizeObserver.",
+                        "fix": "Handle resize: update camera.aspect + camera.updateProjectionMatrix() and renderer.setSize(w, h, false)."
+                    })
+                    break
 
 # ---------------------------------------------------------------------------
 # CLI Entrypoint

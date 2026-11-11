@@ -1,8 +1,8 @@
-# Plastic Surgery: Autonomous UI, GUI & Dashboard Visual Maximizer
+# Plastic Surgery: Autonomous UI, GUI, Dashboard & 3D Visual Maximizer
 
 > **Canonical Skill Entrypoint**: See [`SKILL.md`](./SKILL.md) for the active Hermes / Antigravity / OpenCode skill specification.
 
-Perform a high-precision cosmetic and rendering overhaul ("Plastic Surgery") on any new or existing UI, GUI, or dashboard. Maximize visual appeal, tactile button physics, animation smoothness, and GPU rendering efficiency while preserving **100% of underlying business logic, state bindings, and functional contracts**.
+Perform a high-precision cosmetic and rendering overhaul ("Plastic Surgery") on any new or existing UI, GUI, dashboard, or **3D scene**. Maximize visual appeal, tactile button physics, animation smoothness, asset fidelity, and GPU rendering efficiency while preserving **100% of underlying business logic, state bindings, and functional contracts**.
 
 ---
 
@@ -31,6 +31,18 @@ When operating on an existing codebase, enforce a strict separation between **Vi
 | **Contrast (APCA / WCAG)** | `4.5:1` (`LC 60`) body / `3.0:1` (`LC 45`) UI | `7.0:1` (`LC 75+`) critical telemetry | `< 3.0:1` on interactive controls or labels |
 | **Interactive Hit Targets** | `44x44 CSS px` (`48x48 dp`) touch | `28x28 px` (`>= 4px` gap) desktop pointer | `< 24x24 px` or `0px` inter-button clearance |
 
+### 2.1 3D Scene & Asset Budgets (Three.js / WebGL)
+
+| Tier | Target device | Visible triangles | Draw calls | Texture VRAM | Max texture | Shadow maps | Post passes |
+| :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- |
+| **Low** | Mid-range mobile / WebGL fallback | `<= 60 k` | `<= 80` | `<= 64 MB` | `1024` | `1 x 1024` | `0` (skip composer) |
+| **Medium** | Modern mobile / integrated desktop GPU | `<= 300 k` | `<= 250` | `<= 256 MB` | `2048` | `1-2 x 2048` | `<= 3` |
+| **High** | Discrete desktop GPU | `<= 1.5 M` | `<= 1000` | `<= 512 MB` | `4096` | `2 x 2048` | `<= 3` |
+
+Always: `setPixelRatio(clamp(DPR, 1, 2))`; zero per-frame scratch-object allocation; stable
+`renderer.info.memory` counts across scene toggles; explicit `dispose()` for every
+GPU-owning resource.
+
 ---
 
 ## 3. The 5-Phase Overhaul Pipeline
@@ -40,10 +52,10 @@ When operating on an existing codebase, enforce a strict separation between **Vi
    - **Private vs. Commercial**
    - **Adult vs. All audiences**
    *(If any axis is unverifiable, halt and query the user with the 3 canonical alignment questions).*
-2. **Investigate (Phase 1)**: Map workspace theme to 3–5 modern techniques (OKLCH elevation, specular borders, anti-banding dither, sub-stepped springs, tabular telemetry) and run `scripts/preflight_visual_lint.py`.
+2. **Investigate (Phase 1)**: Map workspace theme to 3–5 modern techniques (OKLCH elevation, specular borders, anti-banding dither, sub-stepped springs, tabular telemetry, PBR/IBL lighting) and run `scripts/preflight_visual_lint.py`.
 3. **Plan (Phase 2)**: Generate the formal Plastic Surgery Blueprint with locked tokens, 6-state button specs, and preserved bindings table.
 4. **Implement (Phase 3)**: Apply presentation-only changes in isolated stylesheets or render passes.
-5. **Verify (Phase 4)**: Audit against the post-op checklist (0 CLS, 0 numeric jitter, reduced-motion compatibility, compositor-clean CSS).
+5. **Verify (Phase 4)**: Audit against the post-op checklist (0 CLS, 0 numeric jitter, reduced-motion compatibility, compositor-clean CSS, 3D draw-call/triangle/VRAM budgets).
 
 ---
 
@@ -51,4 +63,7 @@ When operating on an existing codebase, enforce a strict separation between **Vi
 
 - **Tactile Surfaces & Buttons**: See [`references/tactile_tokens_and_surfaces.md`](./references/tactile_tokens_and_surfaces.md) for full OKLCH color token scales, specular top highlights, and complete 6-state button CSS.
 - **Kinetic Physics & Math**: See [`references/kinetic_physics_and_springs.md`](./references/kinetic_physics_and_springs.md) for `expDecay`, dynamic sub-stepped spring solvers, and analytical damped harmonic oscillators.
-- **Static Telemetry Scanner**: Run `python3 scripts/preflight_visual_lint.py <repo>` to audit visual and compositor performance.
+- **3D Assets & Three.js**: See [`references/threejs_3d_asset_pipeline.md`](./references/threejs_3d_asset_pipeline.md) for the full asset creation pipeline (blockout → UV → PBR bake → LOD → glTF → Draco/KTX2), Three.js material/lighting/post recipes, shader customisation, procedural geometry and instancing, verified version compatibility, and tier budgets.
+- **Static Telemetry Scanner**: Run `python3 scripts/preflight_visual_lint.py <repo>` to audit visual, compositor, and `THREE_*` 3D performance hazards.
+- **3D Asset Auditor**: Run `python3 scripts/preflight_gltf_budget.py <asset.glb> --tier medium --fail-on high` to measure an asset's triangles, draw calls, texture VRAM, material slots, LOD/compression coverage, and structural defects against a device tier.
+

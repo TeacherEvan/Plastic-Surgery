@@ -35,6 +35,22 @@ export function expDecay(current: number, target: number, decay = 18, dt: number
 }
 ```
 
+### Converting legacy per-frame code
+A per-frame factor `p` at 60 fps converts exactly: `λ = −ln(p) × 60`.
+
+| Old per-frame factor | `λ` per second | Typical effect |
+| :--- | :--- | :--- |
+| `0.02` | `1.21` | background hue following a score |
+| `0.1` | `2.19` | slow easing tail |
+| `0.5` | `41.6` | snappy UI state |
+| `0.9` | `6.32` | shake decay |
+| `0.92` | `5.00` | screen pulse |
+
+Call `expDecay(value, target, λ, dtSeconds)` with the delta the loop already computes.
+Matching `λ` keeps the existing feel at 60 Hz and removes the 120 Hz speed-up. A loop
+with several ad-hoc multipliers must convert all of them, or the one left behind still
+drifts on a high-refresh display.
+
 ---
 
 ## 2. Spring Physics: Dynamic Sub-Stepping & Analytical Solutions
@@ -183,3 +199,54 @@ To keep UI at 60 FPS or 120 FPS high-refresh rates, adhere to these hard budgets
 ### Godot & Unity
 - Use UI Canvas / Control nodes with anchors locked.
 - Avoid animating `size` or `custom_minimum_size` in tweens; animate `scale` or `modulate` to keep compositor updates off the CPU layout pass.
+
+---
+
+## 5. Keeping Per-Frame State Out of the Reconciler
+
+`expDecay` and the spring solvers above assume the loop can mutate numbers freely. In a component framework that assumption breaks silently: if position lives in framework state, every tick produces a new object, the reconciler diffs every node, and each node's `style` attribute is rewritten — so the animation runs at frame rate *through the reconciler*, which is the most expensive possible transport.
+
+**The split.** Membership belongs in state; position belongs to the frame clock.
+
+```typescript
+// State: `{ id, emoji, speed, lane, x, y }` where x/y are SPAWN values only.
+// A movement-only frame must produce NO new array so the framework bails out.
+setObjects((prev) => (fallenIds.length ? prev.filter((o) => !fallen.has(o.id)) : prev));
+//                ^ returning `prev` unchanged is the entire optimisation
+```
+
+```typescript
+// Positions: a mutable map advanced in place, never rendered.
+advancePositions(objects, positions, screenHeight, speedMultiplier); // returns fallenIds only
+```
+
+**The writer.** Each element registers its node once on mount; the loop writes to it directly.
+
+```typescript
+const nodes = new Map<string, HTMLElement>();
+const lastX = new Map<string, number>();
+
+export const registerObjectNode = (id: string, node: HTMLElement | null) => {
+  if (node) nodes.set(id, node);
+  else { nodes.delete(id); lastX.delete(id); }   // ref callbacks fire with null first
+};
+
+export const writeFrames = (objects, positions) => {
+  for (const o of objects) {
+    const el = nodes.get(o.id), p = positions.get(o.id);
+    if (!el || !p) continue;
+    // LAYOUT property: assign only when it changes. Re-assigning an identical
+    // value still invalidates layout.
+    if (lastX.get(o.id) !== p.x) { el.style.left = `${p.x}%`; lastX.set(o.id, p.x); }
+    el.style.transform = `translate3d(-50%, ${p.y}px, 0)`;   // compositor-only
+  }
+};
+```
+
+Rules that keep the split honest:
+
+- **Write layout properties only on change; write `transform`/`opacity` every frame.** `left`, `top`, `width`, `height`, `margin` and `padding` trigger layout on assignment even when the value is unchanged. Animating `left` at 60 Hz is a layout pass per frame that no amount of framework tuning will fix.
+- **Gate the dispatch, not the work.** Compute first, then dispatch only if membership changed (`if (survivors !== roster) setObjects(survivors)`). A dispatch that always returns the same value still enters the reconciler.
+- **Keep side effects out of the state updater.** React and similar frameworks may invoke an updater more than once for one commit, so telemetry inside it double-counts. Advance and report outside; use the updater only to prune.
+- **Audit every reader after the move.** Anything that used to read `object.x` now reads the spawn value forever. Collision, culling and telemetry must all be repointed at the live map — a stale reader is a silent behaviour bug, not a perf regression.
+- **Prove it with counts, not fps.** Assert "a movement-only frame dispatches nothing" and "`left` is not rewritten while x is stable" as unit tests; see `surgical-audit` → `references/runtime-probe-harness.md` §8e for why wall-clock timing is the wrong instrument.
