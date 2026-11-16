@@ -26,11 +26,11 @@ In `oklch(L C H)`, perceptual lightness $L$ is a cube-root transfer function of 
   --specular-top-elevated: inset 0 1px 0 0 oklch(1 0 0 / 0.16);
   --specular-top-active: inset 0 1px 0 0 oklch(1 0 0 / 0.24);
 
-  /* Primary Accent & Dedicated Foreground Pairings */
-  --accent-primary: oklch(0.68 0.19 260);         /* Y ≈ 0.314 */
-  --accent-primary-hover: oklch(0.72 0.20 260);   /* Y ≈ 0.373 */
-  --accent-primary-active: oklch(0.64 0.18 260);  /* Y ≈ 0.262 */
-  --text-on-accent: oklch(0.12 0.02 265);         /* Y ≈ 0.00173 | CR = 7.05:1 (WCAG AAA) */
+  /* Primary Accent & Dedicated Foreground Pairings (verified sRGB in-gamut) */
+  --accent-primary: oklch(0.70 0.15 260);         /* Y ≈ 0.339, sRGB in-gamut */
+  --accent-primary-hover: oklch(0.72 0.14 260);   /* Y ≈ 0.370, sRGB in-gamut */
+  --accent-primary-active: oklch(0.65 0.17 260);  /* Y ≈ 0.269, sRGB in-gamut */
+  --text-on-accent: oklch(0.12 0.02 265);         /* Y ≈ 0.00171 | CR = 7.53:1 (WCAG AAA) */
   
   /* Semantic Telemetry Tokens */
   --status-nominal: oklch(0.72 0.17 145);  /* Clean Emerald */
@@ -46,7 +46,7 @@ In `oklch(L C H)`, perceptual lightness $L$ is a cube-root transfer function of 
 ```
 
 > [!IMPORTANT]
-> **Accent Contrast Rule**: When using `--accent-primary` (`oklch(0.68...)`) as a background fill, pair it strictly with `--text-on-accent: oklch(0.12 0.02 265)`. Pairing it with `--text-primary` (`oklch(0.96...)`) yields a contrast ratio of only `2.57:1`, failing both WCAG AA (`4.5:1`) and UI element guidelines (`3.0:1`).
+> **Accent Contrast Rule**: When using `--accent-primary` (`oklch(0.70 0.15 260)`, `Y ≈ 0.339`) as a background fill, pair it strictly with `--text-on-accent: oklch(0.12 0.02 265)` (`CR = 7.53:1` WCAG AAA). Pairing it with `--text-primary` (`oklch(0.96 0.005 265)`) yields a contrast ratio of only `2.40:1`, failing both WCAG AA (`4.5:1`) and UI element guidelines (`3.0:1`).
 
 ---
 
@@ -109,6 +109,7 @@ To prevent the noise layer from rendering over child elements, enforce `isolatio
 ## 4. Production-Ready Six-State Tactile Button
 
 This implementation incorporates key compositor, accessibility, and interaction best practices:
+
 1. **Compositor Efficiency**: Avoids permanent resting `translate3d(0, 0, 0)` layer allocation, saving VRAM on button-dense dashboards and avoiding trapped stacking contexts.
 2. **Smooth Hover Interpolation**: Uses an `::after` pseudo-element with opacity transition instead of non-interpolable gradient snapping or expensive per-frame `box-shadow` repaints.
 3. **Interactive Hit-Testing**: Keeps pointer events active during loading/disabled states so `cursor: not-allowed` or `cursor: wait` renders properly while intercepting duplicate clicks via standard button logic.
@@ -158,16 +159,17 @@ This implementation incorporates key compositor, accessibility, and interaction 
   box-shadow:
     var(--specular-top-elevated),
     0 4px 12px -2px oklch(0 0 0 / 0.5),
-    0 0 16px -4px oklch(0.68 0.19 260 / 0.35);
+    0 0 16px -4px oklch(0.70 0.15 260 / 0.35);
   opacity: 0;
   pointer-events: none;
   transition: opacity 140ms cubic-bezier(0.22, 1, 0.36, 1);
 }
 
-/* 1. Touch viewport hit target expansion */
-@media (pointer: coarse) {
+/* 1. Touch viewport hit target expansion (hybrid touchscreens included; WCAG 2.2 SC 2.5.8) */
+@media (any-pointer: coarse) {
   .btn-tactile {
     min-height: 44px;
+    min-width: 44px;
     padding: 0.625rem 1.125rem;
   }
 }
@@ -251,5 +253,34 @@ This implementation incorporates key compositor, accessibility, and interaction 
   .btn-tactile .btn-spinner {
     animation-duration: 1.5s;
   }
+}
+
+/* Accessibility: Increased Contrast & Forced-Colors Modes (WCAG 2.2 baseline) */
+@media (prefers-contrast: more) {
+  .btn-tactile,
+  .card-tactile {
+    border-color: var(--text-primary);
+  }
+  .btn-tactile:focus-visible {
+    outline-width: 3px;
+  }
+}
+
+@media (forced-colors: active) {
+  .btn-tactile {
+    border: 1px solid ButtonText;
+    background: ButtonFace;
+    color: ButtonText;
+    box-shadow: none;
+  }
+  .btn-tactile:focus-visible {
+    outline: 2px solid Highlight;
+  }
+}
+
+/* Accessibility: Sticky/Fixed Header Anchor Clearance (WCAG 2.2 SC 2.4.11 Focus Not Obscured) */
+section[id],
+[data-focus-target] {
+  scroll-margin-top: var(--sticky-header-height, 5rem);
 }
 ```

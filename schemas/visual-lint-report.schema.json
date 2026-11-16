@@ -1,0 +1,93 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/TeacherEvan/Plastic-Surgery/schemas/visual-lint-report.schema.json",
+  "title": "PlasticSurgeryVisualLintReport",
+  "type": "object",
+  "required": [
+    "target_dir",
+    "files_scanned",
+    "unreadable_files",
+    "total_loc",
+    "visual_health_score",
+    "defects_count",
+    "defects"
+  ],
+  "properties": {
+    "target_dir": {
+      "type": "string",
+      "minLength": 1
+    },
+    "files_scanned": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "unreadable_files": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "total_loc": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "visual_health_score": {
+      "type": "integer",
+      "minimum": 0,
+      "maximum": 100
+    },
+    "defects_count": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "defects": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/Defect"
+      }
+    }
+  },
+  "$defs": {
+    "Defect": {
+      "type": "object",
+      "required": [
+        "file",
+        "line",
+        "code",
+        "severity",
+        "message",
+        "fix"
+      ],
+      "properties": {
+        "file": {
+          "type": "string",
+          "minLength": 1
+        },
+        "line": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "code": {
+          "type": "string",
+          "pattern": "^[A-Z][A-Z0-9_]+$"
+        },
+        "severity": {
+          "type": "string",
+          "enum": [
+            "HIGH",
+            "MEDIUM",
+            "LOW"
+          ]
+        },
+        "message": {
+          "type": "string",
+          "minLength": 1
+        },
+        "fix": {
+          "type": "string",
+          "minLength": 1
+        }
+      },
+      "unevaluatedProperties": false
+    }
+  },
+  "unevaluatedProperties": false
+}

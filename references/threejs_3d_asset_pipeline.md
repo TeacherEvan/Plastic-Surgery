@@ -36,7 +36,7 @@ post-processing chain, camera parameters and renderer settings may change.
 
 Each stage has an explicit gate. Do not advance with a failing gate.
 
-```
+```text
 [1 Concept & Budget]  -> [2 Blockout] -> [3 Detail & Topology] -> [4 UV & Texel Density]
         -> [5 Texture Authoring & Bake] -> [6 LOD & Rig] -> [7 Export glTF 2.0]
         -> [8 Compress & Pack] -> [9 Runtime Load & Validate] -> [10 Frame-Budget Audit]
@@ -710,6 +710,7 @@ methods on the resulting nodes (`.mul()`, `.add()`, `.oneMinus()`). There is **n
 ---
 
 ## 7. Post-Processing Chain (correct order or wrong colours)
+
 ```ts
 import { EffectComposer } from 'three/addons/postprocessing/EffectComposer.js';
 import { RenderPass } from 'three/addons/postprocessing/RenderPass.js';
@@ -1087,19 +1088,3 @@ python3 scripts/preflight_gltf_budget.py asset.glb --tier medium --fail-on high
 | `GLTF_NORMAL_MAP_WITHOUT_TANGENTS` | LOW | Normal map present but no `TANGENT` attribute |
 | `GLTF_PRIMITIVE_WITHOUT_MATERIAL` | LOW | A primitive with no material renders with the default material |
 | `GLTF_MESH_WITHOUT_MATERIAL` | LOW | A mesh with no material assigned |
-
----
-
-
-The preflight visual linter scans JS/TS for three.js-specific hazards. These are **triage
-signals, not verdicts** — see `preflight_scanner_notes.md` for the full triage workflow.
-
-| Code | Severity | Signal | Triage |
-| :--- | :--- | :--- | :--- |
-| `THREE_UNCLAMPED_PIXEL_RATIO` | HIGH | `setPixelRatio(devicePixelRatio)` without a clamp | Real unless a wrapper clamps upstream |
-| `THREE_PER_FRAME_ALLOCATION` | MEDIUM | Zero-arg `new THREE.Vector3()` in a file with a render loop | Real if inside the loop; ignore at module scope |
-| `THREE_MISSING_DISPOSE` | MEDIUM | Resources created, no `.dispose(` anywhere in the file | Real if the scene is torn down elsewhere |
-| `THREE_MISSING_SHADOW_BIAS` | MEDIUM | `castShadow` without `shadow.bias` / `normalBias` | Real unless bias is set in a light factory |
-| `THREE_UNSET_OUTPUT_COLOR_SPACE` | LOW | Renderer created without `outputColorSpace` | Fine on r152+ (default is sRGB) — confirm the version |
-| `THREE_UNCOMPRESSED_GLTF` | LOW | `GLTFLoader` without Draco/meshopt/KTX2 | Real for shipped payloads |
-| `THREE_MISSING_RESIZE_HANDLER` | LOW | Renderer created, no `resize`/`ResizeObserver` | Real if the canvas is not fixed-size |

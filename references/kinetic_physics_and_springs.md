@@ -7,6 +7,7 @@ Jittery transitions and frame-rate-dependent animations break the tactile illusi
 ## 1. Frame-Rate Independent Exponential Decay
 
 A common anti-pattern in UI animation loops is fixed per-frame lerping:
+
 ```typescript
 // ANTI-PATTERN: Runs 2x faster at 120Hz than at 60Hz; hitches on frame drops!
 current += (target - current) * 0.1;
@@ -17,9 +18,10 @@ The mathematically exact, frame-rate independent solution is exponential decay g
 $$y(t) = y_{\text{target}} + (y_0 - y_{\text{target}}) \cdot e^{-\lambda \cdot \Delta t}$$
 
 ### Proof of Unconditional Stability
+
 For any positive decay constant $\lambda > 0$ and any forward elapsed time $\Delta t \ge 0$, the multiplier $e^{-\lambda \Delta t} \in (0, 1]$. Because the decay multiplier never becomes negative or exceeds $1$, **exact exponential decay cannot overshoot or oscillate**, regardless of whether $\Delta t$ is $0.008\text{s}$ or $10.0\text{s}$.
 
-Artificial upper clamping (such as `dt <= 0.1`) is an anti-pattern that freezes animations mid-air when users switch browser tabs. Delta time should only be clamped against negative values (`Math.max(dt, 0)`):
+Artificial upper clamping of `expDecay` itself (such as `dt <= 0.1`) is unnecessary because exponential decay is unconditionally stable (`expDecay` converges smoothly even across tab pauses). Delta time in `expDecay` only needs clamping against negative values (`Math.max(dt, 0)`):
 
 ```typescript
 /**
@@ -36,15 +38,16 @@ export function expDecay(current: number, target: number, decay = 18, dt: number
 ```
 
 ### Converting legacy per-frame code
-A per-frame factor `p` at 60 fps converts exactly: `λ = −ln(p) × 60`.
 
-| Old per-frame factor | `λ` per second | Typical effect |
+A per-frame retention factor `p` (where `value = target + (value - target) * p`, or `p = 1 - k` for `value += (target - value) * k`) at 60 fps converts exactly: `λ = −ln(p) × 60`.
+
+| Old per-frame retention `p` (or blend `k`) | `λ` per second | Typical effect |
 | :--- | :--- | :--- |
-| `0.02` | `1.21` | background hue following a score |
-| `0.1` | `2.19` | slow easing tail |
-| `0.5` | `41.6` | snappy UI state |
-| `0.9` | `6.32` | shake decay |
-| `0.92` | `5.00` | screen pulse |
+| `p = 0.98` (`k = 0.02`) | `1.21` | background hue following a score |
+| `p = 0.964` (`k = 0.036`) | `2.19` | slow easing tail |
+| `p = 0.92` (`k = 0.08`) | `5.00` | screen pulse |
+| `p = 0.90` (`k = 0.10`) | `6.32` | shake decay / UI follow |
+| `p = 0.50` (`k = 0.50`) | `41.6` | snappy UI state |
 
 Call `expDecay(value, target, λ, dtSeconds)` with the delta the loop already computes.
 Matching `λ` keeps the existing feel at 60 Hz and removes the 120 Hz speed-up. A loop
@@ -56,13 +59,14 @@ drifts on a high-refresh display.
 ## 2. Spring Physics: Dynamic Sub-Stepping & Analytical Solutions
 
 ### The Instability Horizon of Euler Integration
+
 Standard single-step Euler integration ($\text{vel} \mathrel{+}= a \cdot dt; \text{pos} \mathrel{+}= \text{vel} \cdot dt$) becomes unstable when $\omega_0 \cdot \Delta t > 1.0$. For an energetic UI spring with stiffness $k = 350$, natural frequency $\omega_0 = \sqrt{350} \approx 18.7\text{ rad/s}$. If a frame drops to 20 FPS ($\Delta t = 0.05\text{s}$), $\omega_0 \cdot \Delta t \approx 0.94$, approaching the threshold for divergence or violent overshoot.
 
 Fixed 4-step divisions are insufficient during large delta-times (e.g. $0.1\text{s} / 4 = 0.025\text{s} > 0.016\text{s}$).
 
 ### Solution A: Dynamic Sub-Stepped Symplectic Euler (Fast, High Dynamic Range)
 
-Compute dynamic sub-steps based on a maximum sub-step ceiling ($\Delta t_{\text{sub}} \le 0.00833\text{s}$, matching a 120 Hz frame budget), with an upper iteration cap (e.g., 24 steps) to avoid CPU spirals during debugger pauses:
+Clamp **elapsed frame time** (`MAX_FRAME_DT = 0.1`, a 10 fps floor) rather than capping the sub-step count, then sub-step dynamically based on $\Delta t_{\text{sub}} \le 0.00833\text{s}$ (120 Hz precision ceiling). Capping the step count instead lets `subDt` grow past the explicit-Euler stability bound ($h < 2 / \omega \approx 0.107\text{s}$ at default stiffness) after a tab switch or debugger pause, causing the integrator to diverge:
 
 ```typescript
 export interface SpringState {
@@ -86,11 +90,13 @@ export function stepSpringSubstepped(
   dt = 1 / 60
 ): SpringState {
   let { pos, vel } = state;
-  const safeDt = Math.max(dt, 0);
-  
+  // Clamp elapsed time, NOT the step count, so subDt never exceeds 8.33ms.
+  const MAX_FRAME_DT = 0.1; // 10 fps floor; beyond this the frame is a resume, not a frame
+  const safeDt = Math.min(Math.max(dt, 0), MAX_FRAME_DT);
+
   // Guarantee subDt <= 8.33ms (120Hz precision) under any frame rate
   const MAX_SUB_DT = 0.00833;
-  const steps = Math.max(1, Math.min(Math.ceil(safeDt / MAX_SUB_DT), 24));
+  const steps = Math.max(1, Math.ceil(safeDt / MAX_SUB_DT));
   const subDt = safeDt / steps;
 
   for (let i = 0; i < steps; i++) {
@@ -189,14 +195,17 @@ To keep UI at 60 FPS or 120 FPS high-refresh rates, adhere to these hard budgets
 ## 4. Multi-Stack Rendering Rules
 
 ### Web DOM & Canvas
+
 - **DPR Clamping**: Always clamp device pixel ratio between `1.0` and `2.0` (`Math.min(window.devicePixelRatio || 1, 2.0)`). 3x/4x mobile viewports cause fill-rate collapse.
 - **Off-Screen Pause**: Wrap `requestAnimationFrame` loops in `IntersectionObserver` or pause when `document.hidden === true`.
 
 ### Pygame / Python GUI
+
 - Pre-render static font strings into a cached dictionary during init/resize. Calling `font.render()` inside `draw()` allocates new Python heap objects every single frame.
 - Batch rectangular blits via `pygame.Surface.blits()`.
 
 ### Godot & Unity
+
 - Use UI Canvas / Control nodes with anchors locked.
 - Avoid animating `size` or `custom_minimum_size` in tweens; animate `scale` or `modulate` to keep compositor updates off the CPU layout pass.
 

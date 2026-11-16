@@ -2,11 +2,10 @@
 #
 # install_plastic_surgery.sh — One-command installer for the plastic-surgery skill.
 #
-# Deploys the complete skill directory:
-#   (SKILL.md,
+# Deploys the runtime skill directory:
+#   (SKILL.md, README.md, LICENSE, AGENTS.md,
 #    scripts/preflight_visual_lint.py, scripts/preflight_gltf_budget.py,
-#    references/tactile_tokens_and_surfaces.md, references/kinetic_physics_and_springs.md,
-#    references/threejs_3d_asset_pipeline.md, references/preflight_scanner_notes.md)
+#    references/*.md, schemas/*.json)
 # into ~/.hermes/skills/plastic-surgery/ on Linux, macOS, WSL, or Termux PRoot.
 #
 # Usage:
@@ -14,7 +13,7 @@
 #   # or from remote:
 #   curl -fsSL https://raw.githubusercontent.com/TeacherEvan/Plastic-Surgery/main/install_plastic_surgery.sh | bash
 #
-set -eo pipefail
+set -euo pipefail
 
 SKILL_NAME="plastic-surgery"
 HERMES_SKILL_DIR="$HOME/.hermes/skills/$SKILL_NAME"
@@ -40,23 +39,37 @@ echo "[install_plastic_surgery] Deploying $SKILL_NAME skill..."
 
 mkdir -p "$HERMES_SKILL_DIR/scripts"
 mkdir -p "$HERMES_SKILL_DIR/references"
+mkdir -p "$HERMES_SKILL_DIR/schemas"
 
-# Core skill manifest
-fetch_file "$HERMES_SKILL_DIR/SKILL.md" "${SCRIPT_DIR:-$RAW_BASE}/SKILL.md"
+# Remove legacy v1 filename if upgrading an older install
+rm -f "$HERMES_SKILL_DIR/Plastic-Surgery.md"
 
-# Preflight visual & compositor scanner
+# Core skill manifest & packaging metadata
+for doc in SKILL.md README.md LICENSE AGENTS.md; do
+    fetch_file "$HERMES_SKILL_DIR/$doc" "${SCRIPT_DIR:-$RAW_BASE}/$doc"
+done
+
+# Runtime preflight scanners
 fetch_file "$HERMES_SKILL_DIR/scripts/preflight_visual_lint.py" "${SCRIPT_DIR:-$RAW_BASE}/scripts/preflight_visual_lint.py"
 chmod +x "$HERMES_SKILL_DIR/scripts/preflight_visual_lint.py"
 
-# glTF / GLB asset budget auditor
 fetch_file "$HERMES_SKILL_DIR/scripts/preflight_gltf_budget.py" "${SCRIPT_DIR:-$RAW_BASE}/scripts/preflight_gltf_budget.py"
 chmod +x "$HERMES_SKILL_DIR/scripts/preflight_gltf_budget.py"
 
 # Reference documentation
-fetch_file "$HERMES_SKILL_DIR/references/tactile_tokens_and_surfaces.md" "${SCRIPT_DIR:-$RAW_BASE}/references/tactile_tokens_and_surfaces.md"
-fetch_file "$HERMES_SKILL_DIR/references/kinetic_physics_and_springs.md" "${SCRIPT_DIR:-$RAW_BASE}/references/kinetic_physics_and_springs.md"
-fetch_file "$HERMES_SKILL_DIR/references/threejs_3d_asset_pipeline.md" "${SCRIPT_DIR:-$RAW_BASE}/references/threejs_3d_asset_pipeline.md"
-fetch_file "$HERMES_SKILL_DIR/references/preflight_scanner_notes.md" "${SCRIPT_DIR:-$RAW_BASE}/references/preflight_scanner_notes.md"
+for ref in \
+    tactile_tokens_and_surfaces.md \
+    kinetic_physics_and_springs.md \
+    threejs_3d_asset_pipeline.md \
+    preflight_scanner_notes.md \
+    phase_playbooks_and_checklists.md; do
+    fetch_file "$HERMES_SKILL_DIR/references/$ref" "${SCRIPT_DIR:-$RAW_BASE}/references/$ref"
+done
+
+# JSON Schemas (Draft 2020-12)
+for schema in visual-lint-report.schema.json gltf-budget-report.schema.json; do
+    fetch_file "$HERMES_SKILL_DIR/schemas/$schema" "${SCRIPT_DIR:-$RAW_BASE}/schemas/$schema"
+done
 
 chmod 755 "$HERMES_SKILL_DIR/scripts"
 
@@ -66,7 +79,9 @@ find "$HERMES_SKILL_DIR" -type f -not -path '*/__pycache__/*' | sort
 
 echo
 echo "[install_plastic_surgery] Done. The skill is now indexed by Nous Hermes Agent."
-echo "[install_plastic_surgery] OpenCode:    copy into ~/.config/opencode/skills/plastic-surgery/"
-echo "[install_plastic_surgery] Antigravity: copy into ~/.config/antigravity/skills/plastic-surgery/ or .agents/skills/plastic-surgery/"
-echo "[install_plastic_surgery] Cursor:      copy into ~/.cursor/skills/plastic-surgery/"
-echo "[install_plastic_surgery] VS Code:     copy into ~/.copilot/skills/plastic-surgery/  (GitHub Copilot Agent Skills, personal scope)"
+echo "[install_plastic_surgery] Mirror sync (from repo checkout): bash scripts/sync-skill.sh sync"
+echo "[install_plastic_surgery] OpenCode:    ~/.config/opencode/skills/plastic-surgery/"
+echo "[install_plastic_surgery] Antigravity: ~/.gemini/antigravity-cli/skills/plastic-surgery/ or ~/.agents/skills/plastic-surgery/"
+echo "[install_plastic_surgery] Gemini CLI:  ~/.gemini/skills/plastic-surgery/ and ~/.gemini/surgical/plastic-surgery/"
+echo "[install_plastic_surgery] Cursor:      ~/.cursor/skills/plastic-surgery/"
+echo "[install_plastic_surgery] VS Code:     ~/.copilot/skills/plastic-surgery/"

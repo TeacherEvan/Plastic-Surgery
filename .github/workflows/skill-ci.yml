@@ -1,0 +1,63 @@
+---
+name: Skill CI
+
+"on":
+  push:
+    branches: [main, master]
+  pull_request:
+    branches: [main, master]
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Conformance gate (zero-dependency)
+        run: python3 -B scripts/conform.py
+
+      - name: Install lint, typecheck, and test tools
+        run: |
+          pip install --no-cache-dir \
+            pytest ruff mypy pyyaml jsonschema check-jsonschema yamllint
+
+      - name: Lint and format check (ruff)
+        run: |
+          ruff check --no-cache \
+            --select E,W,F,I,B,UP,SIM,C901,EXE --ignore E501 scripts/ tests/
+          ruff format --check --no-cache scripts/ tests/
+
+      - name: Strict static typecheck (mypy)
+        run: |
+          mypy --strict --ignore-missing-imports scripts/ tests/
+
+      - name: Validate JSON Schemas (Draft 2020-12)
+        run: |
+          check-jsonschema --check-metaschema schemas/*.json
+
+      - name: Shell script check (bash and shellcheck)
+        run: |
+          bash -n install_plastic_surgery.sh scripts/sync-skill.sh
+          if command -v shellcheck >/dev/null 2>&1; then
+            shellcheck -x install_plastic_surgery.sh scripts/sync-skill.sh
+          fi
+
+      - name: YAML workflow lint
+        run: |
+          yamllint .github/workflows/skill-ci.yml
+
+      - name: Verify SKILL.md line budget and no legacy copy
+        run: |
+          test ! -e Plastic-Surgery.md
+          lines="$(wc -l < SKILL.md)"
+          test "$lines" -le 250
+
+      - name: Run behavioural test suite
+        run: |
+          python3 -m pytest tests/ -v --tb=short

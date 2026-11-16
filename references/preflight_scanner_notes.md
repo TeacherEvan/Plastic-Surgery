@@ -6,7 +6,10 @@ The `preflight_visual_lint.py` scanner is a regex-based static checker. It produ
 
 - **NUMERIC_JITTER_HAZARD on `timer` / `telemetry` / `metric` strings in CSS variable names or JS identifiers.** The regex matches the word, not an actual unstyled number output. Verify: does the target element actually render a changing numeric value? If it's a variable name (`--text-telemetry`) or a timer variable (`autosaveTimer`), ignore.
 - **NUMERIC_JITTER_HAZARD on shader code with `float` arithmetic** (e.g., `TARGET_FRAME_MS`, `iTime`). No `font-variant-numeric` applies to GLSL uniforms. Ignore.
-- **NUMERIC_JITTER_HAZARD on CSS `text-wrap: balance` or heading rules.** The regex sees `text-wrap` on the line and assumes a numeric readout; headings are static. Ignore unless the element actually renders a changing number.
+- **NUMERIC_JITTER_HAZARD on CSS `text-wrap: balance` or `textWrap: 'balance'`:** Stripped automatically by the scanner before metric matching (`v1.4.0+`); if an element shares a line with a real dynamic readout (e.g., `{account.balance}`), `NUMERIC_JITTER_HAZARD` still fires legitimately.
+- **WCAG_SMALL_TARGET_SIZE (`WCAG 2.2 SC 2.5.8`):** Fires when an interactive selector/element explicitly sets `(min-)width` or `(min-)height` below `24px`. Verify whether the target uses the 24 px spacing exception or enlarge to `>= 24x24 CSS px` (`>= 44x44 CSS px` on `any-pointer: coarse`).
+- **WCAG_STICKY_FOCUS_OBSCURED (`WCAG 2.2 SC 2.4.11`):** Fires when sticky/fixed top-anchored header/nav chrome exists without `scroll-margin-top` or `scroll-padding-top` anywhere in the project.
+- **WCAG_MISSING_CONTRAST_OR_FORCED_COLORS:** Fires when `@media (prefers-reduced-motion)` is present without companion `@media (prefers-contrast)` and `@media (forced-colors)` rules.
 - **LAYOUT_THRASHING_ANIMATION** on legitimate composited transforms (`transform`, `opacity`, `border-color`) — the regex over-matches. Confirm the property being animated is `width`, `height`, `top`, `left`, `margin`, or `padding` before treating as HIGH.
 - **THREE_PER_FRAME_ALLOCATION** on a zero-argument `new THREE.Vector3()` that is *not* inside the render loop. The rule fires on the whole file when a loop exists somewhere in it. Verify the allocation is on a per-frame path; module-scope scratch objects are fine.
 - **THREE_MISSING_DISPOSE** on a file that only *constructs* a shared resource (a renderer factory, a module-level texture). Teardown is often centralised in another module — check the owner before adding a `dispose()`.
@@ -24,9 +27,11 @@ The `preflight_visual_lint.py` scanner is a regex-based static checker. It produ
 5. Confirm no `width`/`height`/`top`/`left`/`margin`/`padding` appears inside any `transition` or `animation` declaration.
 
 ## Reduced-Motion Guard Check
-Always verify `@media (prefers-reduced-motion: reduce)` exists and collapses spatial translations to `0.01ms` while preserving functional indicators (spinners at reduced speed).
+
+Always verify `@media (prefers-reduced-motion: reduce)` exists alongside `@media (prefers-contrast: more)` and `@media (forced-colors: active)`, collapsing spatial translations to `0.01ms` while preserving functional indicators (spinners at reduced speed).
 
 ## 3D (Three.js) Check
+
 For WebGL targets, additionally confirm:
 
 1. `renderer.setPixelRatio()` clamps to `[1, 2]`.
@@ -65,5 +70,3 @@ re-classified every constructor allocation as a per-frame allocation.
 against a tier budget, not heuristics. Still read the message: `GLTF_SCALE_SUSPICIOUS` fires
 on geometry whose extent is outside `[0.01, 1000]` units, which is right for a metre-unit
 asset but worth a second look for a deliberately microscopic or macro-scale one.
-
-

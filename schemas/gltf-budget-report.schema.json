@@ -1,0 +1,264 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/TeacherEvan/Plastic-Surgery/schemas/gltf-budget-report.schema.json",
+  "title": "PlasticSurgeryGltfBudgetReport",
+  "type": "object",
+  "required": [
+    "asset",
+    "budget",
+    "asset_health_score",
+    "defects_count",
+    "defects"
+  ],
+  "properties": {
+    "asset": {
+      "$ref": "#/$defs/AssetStats"
+    },
+    "budget": {
+      "$ref": "#/$defs/TierBudget"
+    },
+    "asset_health_score": {
+      "type": "integer",
+      "minimum": 0,
+      "maximum": 100
+    },
+    "defects_count": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "defects": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/Defect"
+      }
+    }
+  },
+  "$defs": {
+    "AssetStats": {
+      "type": "object",
+      "required": [
+        "file",
+        "tier",
+        "triangles",
+        "vertices",
+        "draw_calls_estimate",
+        "meshes",
+        "nodes",
+        "materials",
+        "textures",
+        "images",
+        "animations",
+        "skins",
+        "cameras",
+        "texture_vram_mb",
+        "texture_decoded_mb",
+        "max_texture_dimension",
+        "geometry_compressed",
+        "texture_compressed",
+        "extensions_used",
+        "textures_detail"
+      ],
+      "properties": {
+        "file": {
+          "type": "string",
+          "minLength": 1
+        },
+        "tier": {
+          "type": "string",
+          "enum": [
+            "low",
+            "medium",
+            "high"
+          ]
+        },
+        "triangles": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "vertices": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "draw_calls_estimate": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "meshes": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "nodes": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "materials": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "textures": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "images": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "animations": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "skins": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "cameras": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "texture_vram_mb": {
+          "type": "number",
+          "minimum": 0
+        },
+        "texture_decoded_mb": {
+          "type": "number",
+          "minimum": 0
+        },
+        "max_texture_dimension": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "geometry_compressed": {
+          "type": "boolean"
+        },
+        "texture_compressed": {
+          "type": "boolean"
+        },
+        "extensions_used": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "textures_detail": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/TextureDetail"
+          }
+        }
+      },
+      "unevaluatedProperties": false
+    },
+    "TextureDetail": {
+      "type": "object",
+      "required": [
+        "format",
+        "width",
+        "height"
+      ],
+      "properties": {
+        "format": {
+          "type": "string"
+        },
+        "width": {
+          "type": [
+            "integer",
+            "null"
+          ],
+          "minimum": 1
+        },
+        "height": {
+          "type": [
+            "integer",
+            "null"
+          ],
+          "minimum": 1
+        },
+        "file_bytes": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "vram_bytes": {
+          "type": "integer",
+          "minimum": 0
+        }
+      },
+      "unevaluatedProperties": false
+    },
+    "TierBudget": {
+      "type": "object",
+      "required": [
+        "triangles",
+        "draw_calls",
+        "texture_vram_mb",
+        "max_texture",
+        "materials"
+      ],
+      "properties": {
+        "triangles": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "draw_calls": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "texture_vram_mb": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "max_texture": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "materials": {
+          "type": "integer",
+          "minimum": 1
+        }
+      },
+      "unevaluatedProperties": false
+    },
+    "Defect": {
+      "type": "object",
+      "required": [
+        "file",
+        "line",
+        "code",
+        "severity",
+        "message",
+        "fix"
+      ],
+      "properties": {
+        "file": {
+          "type": "string",
+          "minLength": 1
+        },
+        "line": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "code": {
+          "type": "string",
+          "pattern": "^[A-Z][A-Z0-9_]+$"
+        },
+        "severity": {
+          "type": "string",
+          "enum": [
+            "HIGH",
+            "MEDIUM",
+            "LOW"
+          ]
+        },
+        "message": {
+          "type": "string",
+          "minLength": 1
+        },
+        "fix": {
+          "type": "string",
+          "minLength": 1
+        }
+      },
+      "unevaluatedProperties": false
+    }
+  },
+  "unevaluatedProperties": false
+}
