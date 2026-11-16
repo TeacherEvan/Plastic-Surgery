@@ -40,8 +40,11 @@ RE_TEXT_WRAP_BALANCE = re.compile(
     r"text-?wrap(?:-style)?\s*[:=]\s*['\"]?balance['\"]?",
     re.IGNORECASE,
 )
+_METRIC_TOKENS = r"(?:counter|timer|telemetry|stat[-_]value|metric|live[-_]data|readout|price|balance|fps)"
 RE_DYNAMIC_METRIC = re.compile(
-    r"(?:counter|timer|telemetry|stat-value|metric|live-data|readout|price|balance|fps)",
+    rf"(?:\{{\s*[\w$.[\]()?]*\b{_METRIC_TOKENS}\b"
+    rf"|\$\{{\s*[\w$.[\]()?]*\b{_METRIC_TOKENS}\b"
+    rf"|(?:class(?:Name)?|id|data-[\w-]+)\s*=\s*[\"'][^\"']*\b{_METRIC_TOKENS}\b[^\"']*[\"'])",
     re.IGNORECASE,
 )
 RE_BACKDROP_BLUR = re.compile(r"backdrop-filter\s*:\s*blur\(([^)]+)\)", re.IGNORECASE)
@@ -298,6 +301,8 @@ class VisualAuditor:
         self.has_sticky_header = False
         self.sticky_header_loc: tuple[str, int] | None = None
         self.has_scroll_margin_top = False
+        self.has_tabular_nums = False
+        self.metric_jitter_candidates: list[tuple[str, int, str]] = []
 
     def _add_defect(
         self, file: str, line: int, code: str, severity: str, message: str, fix: str
@@ -322,11 +327,31 @@ class VisualAuditor:
             if ext in SUPPORTED_EXTS:
                 self._scan_file(self.root_dir, ext)
         else:
+            test_dirs = {
+                "tests",
+                "test",
+                "__tests__",
+                "spec",
+                "specs",
+                "fixtures",
+                "__mocks__",
+            }
             for root, dirs, files in os.walk(self.root_dir):
                 dirs[:] = sorted(
-                    d for d in dirs if d not in EXCLUDED_DIRS and not d.startswith(".")
+                    d
+                    for d in dirs
+                    if d not in EXCLUDED_DIRS
+                    and d not in test_dirs
+                    and not d.startswith(".")
                 )
                 for file in sorted(files):
+                    if (
+                        file.startswith("test_")
+                        or file.endswith("_test.py")
+                        or ".test." in file
+                        or ".spec." in file
+                    ):
+                        continue
                     ext = os.path.splitext(file)[1].lower()
                     if ext in SUPPORTED_EXTS:
                         self._scan_file(os.path.join(root, file), ext)
@@ -398,6 +423,17 @@ class VisualAuditor:
                 "Set scroll-margin-top (or scroll-padding-top on html) >= the sticky header height so anchored headings and focused controls remain unobscured.",
             )
 
+        if not self.has_tabular_nums:
+            for loc_file, loc_line, snippet_preview in self.metric_jitter_candidates:
+                self._add_defect(
+                    loc_file,
+                    loc_line,
+                    "NUMERIC_JITTER_HAZARD",
+                    "LOW",
+                    f"Dynamic counter/metric readout element may lack tabular-nums: '{snippet_preview}'.",
+                    "Apply font-variant-numeric: tabular-nums; to prevent horizontal number oscillation.",
+                )
+
     def _update_preference_flags(self, rel_path: str, content: str) -> None:
         if "prefers-reduced-motion" in content:
             self.has_reduced_motion = True
@@ -412,6 +448,8 @@ class VisualAuditor:
             self.has_forced_colors = True
         if RE_SCROLL_MARGIN_TOP.search(content):
             self.has_scroll_margin_top = True
+        if RE_TABULAR_NUMS.search(content):
+            self.has_tabular_nums = True
         if re.search(r"\b(?:transition|animation)\s*:", content, re.IGNORECASE):
             self.has_motion = True
 
@@ -539,14 +577,7 @@ class VisualAuditor:
         ):
             snippet = "\n".join(lines[max(0, idx - 5) : min(len(lines), idx + 5)])
             if not RE_TABULAR_NUMS.search(snippet):
-                self._add_defect(
-                    rel_path,
-                    idx,
-                    "NUMERIC_JITTER_HAZARD",
-                    "LOW",
-                    f"Dynamic counter/metric readout element may lack tabular-nums: '{stripped[:60]}'.",
-                    "Apply font-variant-numeric: tabular-nums; to prevent horizontal number oscillation.",
-                )
+                self.metric_jitter_candidates.append((rel_path, idx, stripped[:60]))
 
     def _check_three_line(
         self,

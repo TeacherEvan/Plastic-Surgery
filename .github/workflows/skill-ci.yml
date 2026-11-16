@@ -60,4 +60,4 @@ jobs:
 
       - name: Run behavioural test suite
         run: |
-          python3 -m pytest tests/ -v --tb=short
+          pytest tests/ -v --tb=short

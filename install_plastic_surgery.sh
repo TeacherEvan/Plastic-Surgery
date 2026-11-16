@@ -78,8 +78,13 @@ echo "[install_plastic_surgery] Files:"
 find "$HERMES_SKILL_DIR" -type f -not -path '*/__pycache__/*' | sort
 
 echo
-echo "[install_plastic_surgery] Done. The skill is now indexed by Nous Hermes Agent."
-echo "[install_plastic_surgery] Mirror sync (from repo checkout): bash scripts/sync-skill.sh sync"
+if [[ "$LOCAL_MODE" -eq 1 && -x "$SCRIPT_DIR/scripts/sync-skill.sh" ]] && git -C "$SCRIPT_DIR" rev-parse --show-toplevel >/dev/null 2>&1; then
+  echo "[install_plastic_surgery] Syncing all 8 agent skill mirrors..."
+  bash "$SCRIPT_DIR/scripts/sync-skill.sh" sync
+else
+  echo "[install_plastic_surgery] Done. The skill is now indexed by Nous Hermes Agent."
+  echo "[install_plastic_surgery] Mirror sync (from repo checkout): bash scripts/sync-skill.sh sync"
+fi
 echo "[install_plastic_surgery] OpenCode:    ~/.config/opencode/skills/plastic-surgery/"
 echo "[install_plastic_surgery] Antigravity: ~/.gemini/antigravity-cli/skills/plastic-surgery/ or ~/.agents/skills/plastic-surgery/"
 echo "[install_plastic_surgery] Gemini CLI:  ~/.gemini/skills/plastic-surgery/ and ~/.gemini/surgical/plastic-surgery/"

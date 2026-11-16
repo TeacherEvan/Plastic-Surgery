@@ -103,15 +103,30 @@ Before concluding any overhaul, verify every applicable item below with concrete
 
 ```python
 # 390 px touch viewport
-cdp("Emulation.setDeviceMetricsOverride", width=390, height=844, deviceScaleFactor=2, mobile=True)
+cdp(
+    "Emulation.setDeviceMetricsOverride",
+    width=390,
+    height=844,
+    deviceScaleFactor=2,
+    mobile=True,
+)
 cdp("Emulation.setTouchEmulationEnabled", enabled=True, maxTouchPoints=5)
-goto_url("http://127.0.0.1:PORT/?after=1"); wait_for_load()
+goto_url("http://127.0.0.1:PORT/?after=1")
+wait_for_load()
 assert js("document.documentElement.scrollWidth") == js("innerWidth")
-assert js("Math.round(document.querySelectorAll('.nav-links a')[3].getBoundingClientRect().right)") <= 390
+assert (
+    js(
+        "Math.round(document.querySelectorAll('.nav-links a')[3].getBoundingClientRect().right)"
+    )
+    <= 390
+)
 assert js("getComputedStyle(document.querySelector('.vote-btn')).minHeight") == "44px"
 
 # reduced-motion contract
-cdp("Emulation.setEmulatedMedia", features=[{"name": "prefers-reduced-motion", "value": "reduce"}])
+cdp(
+    "Emulation.setEmulatedMedia",
+    features=[{"name": "prefers-reduced-motion", "value": "reduce"}],
+)
 assert js("getComputedStyle(document.documentElement).scrollBehavior") == "auto"
 assert js("getComputedStyle(document.querySelector('.bubble')).animationName") == "none"
 cdp("Emulation.setEmulatedMedia", features=[])
