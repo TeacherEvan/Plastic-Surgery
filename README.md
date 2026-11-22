@@ -1,6 +1,6 @@
 # Plastic-Surgery
 
-**UI / GUI / Dashboard / 3D Visual Overhaul** — the visual counterpart to `surgical-implementation`.
+**UI / GUI / Dashboard / 3D / Video Visual Overhaul** — the visual counterpart to `surgical-implementation` and `surgical-media`.
 
 Plastic Surgery is an agent skill for **Nous Hermes Agent**, **Google Antigravity**, **OpenCode**, **Cursor**, **GitHub Copilot**, and **Agents** runtimes that performs precision cosmetic and rendering overhauls on UI, GUI, dashboards, and **Three.js/WebGL scenes**: tactile buttons, sRGB-verified `oklch()` colour tokens, sub-stepped spring physics, compositor-clean animations, WCAG 2.2 checks, and budgeted 3D asset pipelines — while guaranteeing **100% functional regression safety**.
 
@@ -15,15 +15,19 @@ Plastic Surgery is an agent skill for **Nous Hermes Agent**, **Google Antigravit
 | [LICENSE](./LICENSE) | MIT license |
 | [scripts/preflight_visual_lint.py](./scripts/preflight_visual_lint.py) | Zero-mutation static scanner (layout thrashing, numeric jitter, WCAG 2.2, `THREE_*` hazards, `--json`, `--sarif`) |
 | [scripts/preflight_gltf_budget.py](./scripts/preflight_gltf_budget.py) | Zero-mutation glTF/GLB asset auditor (triangles, draw calls, VRAM, material slots, LOD/compression coverage, URI safety) |
+| [scripts/preflight_video_polish.py](./scripts/preflight_video_polish.py) | Zero-mutation `surgical-media` storyboard & MP4 auditor (palette contrast, easings, safe zones, H.264/BT.709/`+faststart`, loudness, `signalstats`) |
+| [scripts/polish_surgical_media.py](./scripts/polish_surgical_media.py) | Non-destructive Mode A storyboard/3D polisher (SHA-256 immutable proof) & Mode B single-pass FFmpeg + `loudnorm` + `--qc-frames` engine |
 | [scripts/conform.py](./scripts/conform.py) | Shared family conformance validator |
 | [scripts/sync-skill.sh](./scripts/sync-skill.sh) | Cross-target skill mirror sync (`check`, `sync`, `verify`, `list`) across all 8 agent homes |
 | [schemas/visual-lint-report.schema.json](./schemas/visual-lint-report.schema.json) | JSON Schema `2020-12` contract for `preflight_visual_lint.py --json` |
 | [schemas/gltf-budget-report.schema.json](./schemas/gltf-budget-report.schema.json) | JSON Schema `2020-12` contract for `preflight_gltf_budget.py --json` |
+| [schemas/video-polish-report.schema.json](./schemas/video-polish-report.schema.json) | JSON Schema `2020-12` contract for `preflight_video_polish.py --json` |
 | [references/tactile_tokens_and_surfaces.md](./references/tactile_tokens_and_surfaces.md) | In-gamut `oklch()` color tokens, specular top-edge borders, OLED dither, WCAG 2.2 media queries, and 6-state tactile button CSS |
 | [references/kinetic_physics_and_springs.md](./references/kinetic_physics_and_springs.md) | Frame-rate independent `expDecay`, `MAX_FRAME_DT`-clamped sub-stepped spring integrators, analytical harmonic oscillators, and reconciler split |
 | [references/threejs_3d_asset_pipeline.md](./references/threejs_3d_asset_pipeline.md) | End-to-end 3D asset creation, Three.js materials/lighting/post-processing, procedural geometry, instancing, and render budget tiers |
 | [references/preflight_scanner_notes.md](./references/preflight_scanner_notes.md) | Triage rules for scanner false positives, WCAG 2.2 signals, and `THREE_*` calibration |
-| [references/phase_playbooks_and_checklists.md](./references/phase_playbooks_and_checklists.md) | Blueprint template, native GUI rules, 21-item Phase 4 checklist, CDP checks, and static print/PDF rules |
+| [references/phase_playbooks_and_checklists.md](./references/phase_playbooks_and_checklists.md) | Blueprint template, native GUI rules, 21-item Phase 4 checklist, CDP checks, and static print/video rules |
+| [references/video_post_production.md](./references/video_post_production.md) | Mode A (`surgical-media` storyboard/3D polish) & Mode B (single-pass FFmpeg finishing, BT.709, `loudnorm`, safe zones) |
 | [install_plastic_surgery.sh](./install_plastic_surgery.sh) | One-command standalone installer |
 
 ---

@@ -48,6 +48,14 @@ RE_DYNAMIC_METRIC = re.compile(
     re.IGNORECASE,
 )
 RE_BACKDROP_BLUR = re.compile(r"backdrop-filter\s*:\s*blur\(([^)]+)\)", re.IGNORECASE)
+RE_BLUR_VALUE = re.compile(r"(\d+(?:\.\d+)?)\s*(px|rem)\b", re.IGNORECASE)
+RE_TRANSITION_ALL = re.compile(
+    r"\btransition(?:-property)?\s*:[^;\n]*\ball\b", re.IGNORECASE
+)
+RE_MOTION_TRIGGER = re.compile(
+    r"(?:\b(?:transition(?:-property)?|animation(?:-name|-timeline)?)\s*:|@view-transition\b|\bstartViewTransition\s*\()",
+    re.IGNORECASE,
+)
 
 # Matches property assignment lerps (e.g. this.x += (target - this.x) * 0.1)
 RE_FIXED_LERP_ASSIGN = re.compile(
@@ -139,6 +147,25 @@ RE_THREE_PROJECT = re.compile(
     r"from\s+['\"]three(?:/[^'\"]*)?['\"]|require\s*\(\s*['\"]three['\"]\s*\)|\bTHREE\.",
     re.IGNORECASE,
 )
+RE_SCRIPT_BLOCK = re.compile(
+    r"<script\b[^>]*>(.*?)</script>", re.IGNORECASE | re.DOTALL
+)
+RE_THREE_DEPRECATED_API = re.compile(
+    r"\b(?:PCFSoftShadowMap|useLegacyLights|CubeUVReflectionMapping)\b"
+)
+RE_THREE_COMPOSER = re.compile(r"new\s+(?:THREE\.)?EffectComposer\s*\(([^)]*)\)")
+RE_THREE_OUTPUT_PASS = re.compile(r"\bOutputPass\b")
+RE_THREE_BLOOM_PASS = re.compile(r"\bUnrealBloomPass\b")
+RE_THREE_ROOM_ENV_ANON = re.compile(
+    r"fromScene\s*\(\s*new\s+(?:THREE\.)?RoomEnvironment\s*\("
+)
+RE_THREE_GET_DELTA = re.compile(r"\.getDelta\s*\(\s*\)")
+RE_FOCUS_SELECTOR = re.compile(r":focus(?:-visible|-within)?\b", re.IGNORECASE)
+RE_OUTLINE_NONE = re.compile(r"\boutline\s*:\s*(?:none|0)\b", re.IGNORECASE)
+RE_FOCUS_REPLACEMENT = re.compile(
+    r"\b(?:box-shadow|border(?:-color|-width)?|outline-color|background(?:-color)?)\s*:",
+    re.IGNORECASE,
+)
 
 # --- Scope analysis (so a rule can tell module scope from a frame callback) ---
 RE_CONSTRUCTOR = re.compile(r"\bconstructor\s*\(")
@@ -196,10 +223,23 @@ def blank_strings_and_comments(text: str) -> str:
     return RE_STRING_OR_COMMENT.sub(lambda m: "\n" * m.group(0).count("\n"), text)
 
 
-JS_EXTS = {".js", ".jsx", ".ts", ".tsx"}
+def extract_inline_scripts(content: str) -> str:
+    """Return only <script>...</script> bodies while preserving exact 1-based line numbers."""
+    chunks: list[str] = []
+    pos = 0
+    for match in RE_SCRIPT_BLOCK.finditer(content):
+        outside = content[pos : match.start(1)]
+        chunks.append("\n" * outside.count("\n"))
+        chunks.append(match.group(1))
+        pos = match.end(1)
+    chunks.append("\n" * content[pos:].count("\n"))
+    return "".join(chunks)
+
+
+JS_EXTS = {".js", ".jsx", ".ts", ".tsx", ".mjs", ".cjs"}
 STYLE_EXTS = {".css", ".scss", ".sass", ".less"}
 MARKUP_EXTS = {".html", ".jsx", ".tsx", ".svelte", ".vue"}
-SUPPORTED_EXTS = STYLE_EXTS | MARKUP_EXTS | {".js", ".ts", ".py", ".gd"}
+SUPPORTED_EXTS = STYLE_EXTS | MARKUP_EXTS | JS_EXTS | {".py", ".gd"}
 
 EXCLUDED_DIRS = {
     "node_modules",
@@ -212,6 +252,7 @@ EXCLUDED_DIRS = {
     ".pytest_cache",
     ".ruff_cache",
     ".mypy_cache",
+    ".venv",
     "coverage",
     "playwright-report",
     "test-results",
@@ -219,7 +260,7 @@ EXCLUDED_DIRS = {
 }
 
 # Keep in sync with SKILL.md `version:` — the linter advertises it.
-LINTER_VERSION = "1.4.0"
+LINTER_VERSION = "2.0.0"
 
 SEVERITY_WEIGHTS = {
     "HIGH": 10,
@@ -450,7 +491,7 @@ class VisualAuditor:
             self.has_scroll_margin_top = True
         if RE_TABULAR_NUMS.search(content):
             self.has_tabular_nums = True
-        if re.search(r"\b(?:transition|animation)\s*:", content, re.IGNORECASE):
+        if RE_MOTION_TRIGGER.search(content):
             self.has_motion = True
 
     def _scan_file(self, path: str, ext: str) -> None:
@@ -480,10 +521,22 @@ class VisualAuditor:
         self.total_loc += len(lines)
         self._update_preference_flags(rel_path, content)
 
-        is_three = ext in JS_EXTS and bool(RE_THREE_PROJECT.search(content))
-        stripped_text = blank_strings_and_comments(content)
+        three_source: str | None = None
+        if ext in JS_EXTS and RE_THREE_PROJECT.search(content):
+            three_source = content
+        elif ext in MARKUP_EXTS and "<script" in content.lower():
+            inline_js = extract_inline_scripts(content)
+            if RE_THREE_PROJECT.search(inline_js):
+                three_source = inline_js
+
+        is_three = three_source is not None
+        stripped_text = (
+            blank_strings_and_comments(three_source) if three_source is not None else ""
+        )
         code_lines = stripped_text.splitlines()
-        has_render_loop = bool(RE_THREE_RENDER_LOOP.search(stripped_text))
+        has_render_loop = (
+            bool(RE_THREE_RENDER_LOOP.search(stripped_text)) if is_three else False
+        )
         scope_map, alloc_in_func = (
             self._analyze_three_scopes(code_lines) if is_three else ([], set())
         )
@@ -545,18 +598,33 @@ class VisualAuditor:
                 "Animate compositor-only properties ('transform', 'opacity') using CSS scale/translate or matrix3d.",
             )
 
+        if RE_TRANSITION_ALL.search(line):
+            self._add_defect(
+                rel_path,
+                idx,
+                "TRANSITION_ALL_HAZARD",
+                "MEDIUM",
+                "Avoid 'transition: all'; it animates layout properties on unexpected changes.",
+                "List compositor-only properties explicitly (e.g. 'transition: transform 140ms ease, opacity 140ms ease').",
+            )
+
         m_blur = RE_BACKDROP_BLUR.search(line)
         if m_blur:
-            px_match = re.search(r"(\d+)\s*px", m_blur.group(1).strip())
-            if px_match and int(px_match.group(1)) > 16:
-                self._add_defect(
-                    rel_path,
-                    idx,
-                    "EXCESSIVE_BLUR_OVERDRAW",
-                    "MEDIUM",
-                    f"backdrop-filter blur radius ({px_match.group(1)}px) exceeds safe 16px frame budget.",
-                    "Clamp blur radius <= 16px and ensure maximum 2 overlapping blur layers.",
+            val_match = RE_BLUR_VALUE.search(m_blur.group(1).strip())
+            if val_match:
+                raw_val = float(val_match.group(1))
+                px_val = (
+                    raw_val * 16.0 if val_match.group(2).lower() == "rem" else raw_val
                 )
+                if px_val > 16.0:
+                    self._add_defect(
+                        rel_path,
+                        idx,
+                        "EXCESSIVE_BLUR_OVERDRAW",
+                        "MEDIUM",
+                        f"backdrop-filter blur radius ({val_match.group(1)}{val_match.group(2)}) exceeds safe 16px frame budget.",
+                        "Clamp blur radius <= 16px and ensure maximum 2 overlapping blur layers.",
+                    )
 
         m_lerp = RE_FIXED_LERP_ASSIGN.search(line) or RE_FIXED_LERP_FN.search(line)
         if m_lerp and ext in {".js", ".ts", ".jsx", ".tsx", ".py", ".gd"}:
@@ -678,7 +746,7 @@ class VisualAuditor:
         clean_css_text = blank_block_comments(content)
         lines = clean_css_text.splitlines()
         selector_buf: list[str] = []
-        block_stack: list[str] = []
+        block_stack: list[dict[str, Any]] = []
 
         for idx, line in enumerate(lines, 1):
             if ext in MARKUP_EXTS:
@@ -689,14 +757,24 @@ class VisualAuditor:
                 before_brace, after_brace = line.split("{", 1)
                 selector = (" ".join(selector_buf) + " " + before_brace).strip()
                 selector_buf.clear()
-                block_stack.append(selector)
-                self._inspect_css_rule_line(rel_path, idx, selector, after_brace)
+                block_stack.append(
+                    {
+                        "selector": selector,
+                        "line": idx,
+                        "outline_none": False,
+                        "has_replacement": False,
+                    }
+                )
+                self._inspect_css_rule_line(rel_path, idx, block_stack[-1], after_brace)
+                if "}" in after_brace:
+                    self._finalize_focus_block(rel_path, block_stack.pop())
             elif "}" in line:
                 if block_stack:
+                    top = block_stack.pop()
                     self._inspect_css_rule_line(
-                        rel_path, idx, block_stack[-1], line.split("}", 1)[0]
+                        rel_path, idx, top, line.split("}", 1)[0]
                     )
-                    block_stack.pop()
+                    self._finalize_focus_block(rel_path, top)
                 selector_buf.clear()
             elif block_stack:
                 self._inspect_css_rule_line(rel_path, idx, block_stack[-1], line)
@@ -705,9 +783,31 @@ class VisualAuditor:
                 if stripped and not stripped.startswith("<"):
                     selector_buf.append(stripped)
 
+    def _finalize_focus_block(self, rel_path: str, block: dict[str, Any]) -> None:
+        if (
+            RE_FOCUS_SELECTOR.search(str(block["selector"]))
+            and block["outline_none"]
+            and not block["has_replacement"]
+        ):
+            self._add_defect(
+                rel_path,
+                int(block["line"]),
+                "WCAG_OUTLINE_NONE_WITHOUT_REPLACEMENT",
+                "HIGH",
+                f"Focus rule '{str(block['selector'])[:50]}' removes outline without a replacement focus indicator.",
+                "Keep a visible :focus-visible outline (2px solid var(--accent-primary)) or provide a high-contrast box-shadow/border.",
+            )
+
     def _inspect_css_rule_line(
-        self, rel_path: str, line_no: int, selector: str, decl: str
+        self, rel_path: str, line_no: int, block: dict[str, Any], decl: str
     ) -> None:
+        selector = str(block["selector"])
+        if RE_FOCUS_SELECTOR.search(selector):
+            if RE_OUTLINE_NONE.search(decl):
+                block["outline_none"] = True
+            if RE_FOCUS_REPLACEMENT.search(decl):
+                block["has_replacement"] = True
+
         if RE_STICKY_HEADER_CSS.search(decl) and RE_STICKY_HEADER_SELECTOR.search(
             selector
         ):
@@ -902,6 +1002,69 @@ class VisualAuditor:
                 "LOW",
                 "WebGLRenderer created with no resize listener or ResizeObserver.",
                 "Handle resize: update camera.aspect + camera.updateProjectionMatrix() and renderer.setSize(w, h, false).",
+            )
+
+        self._scan_three_modern_rules(rel_path, code, code_lines)
+
+    def _scan_three_modern_rules(
+        self, rel_path: str, code: str, code_lines: list[str]
+    ) -> None:
+        """Check Three.js r165-r187+ deprecated APIs and EffectComposer HDR/OutputPass rules."""
+        if RE_THREE_DEPRECATED_API.search(code):
+            self._flag_first_match(
+                rel_path,
+                code_lines,
+                RE_THREE_DEPRECATED_API,
+                "THREE_DEPRECATED_API",
+                "MEDIUM",
+                "Removed/deprecated Three.js API detected (PCFSoftShadowMap removed r186, useLegacyLights removed r165, CubeUVReflectionMapping removed r187).",
+                "Use THREE.PCFShadowMap + shadow.radius, physical lighting, and PMREMGenerator native cube render targets.",
+            )
+
+        if RE_THREE_COMPOSER.search(code) and not RE_THREE_OUTPUT_PASS.search(code):
+            self._flag_first_match(
+                rel_path,
+                code_lines,
+                RE_THREE_COMPOSER,
+                "THREE_MISSING_OUTPUT_PASS",
+                "MEDIUM",
+                "EffectComposer is configured without OutputPass; tone mapping and sRGB output conversion may be skipped or misordered.",
+                "Append composer.addPass(new OutputPass()) as the final pass in the EffectComposer chain.",
+            )
+
+        if RE_THREE_BLOOM_PASS.search(code) and any(
+            "," not in m.group(1) for m in RE_THREE_COMPOSER.finditer(code)
+        ):
+            self._flag_first_match(
+                rel_path,
+                code_lines,
+                RE_THREE_COMPOSER,
+                "THREE_COMPOSER_8BIT_TARGET",
+                "LOW",
+                "UnrealBloomPass used with single-argument EffectComposer(renderer) default 8-bit render target; HDR highlights clip.",
+                "Pass a THREE.WebGLRenderTarget(w, h, { type: THREE.HalfFloatType, samples: 4 }) as the second argument to EffectComposer.",
+            )
+
+        if RE_THREE_ROOM_ENV_ANON.search(code):
+            self._flag_first_match(
+                rel_path,
+                code_lines,
+                RE_THREE_ROOM_ENV_ANON,
+                "THREE_MISSING_ROOM_ENV_DISPOSE",
+                "LOW",
+                "Anonymous RoomEnvironment passed to pmrem.fromScene() is never disposed.",
+                "Assign const roomEnv = new RoomEnvironment(); ... roomEnv.dispose(); after pmrem.fromScene(roomEnv, ...).",
+            )
+
+        if RE_THREE_GET_DELTA.search(code) and not RE_PIXEL_RATIO_CLAMPED.search(code):
+            self._flag_first_match(
+                rel_path,
+                code_lines,
+                RE_THREE_GET_DELTA,
+                "THREE_UNBOUNDED_CLOCK_DELTA",
+                "MEDIUM",
+                "clock.getDelta() used without Math.min/clamp; a backgrounded tab returns a multi-second delta.",
+                "Clamp delta time: const dt = Math.min(clock.getDelta(), 0.1);",
             )
 
 

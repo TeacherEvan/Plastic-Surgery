@@ -1026,6 +1026,11 @@ rather than a flat regex.
 | `THREE_UNSET_OUTPUT_COLOR_SPACE` | LOW | Renderer created without `outputColorSpace` | Fine on r152+ (sRGB is the default) — pin it anyway |
 | `THREE_UNCOMPRESSED_GLTF` | LOW | A `GLTFLoader` is **instantiated** with no Draco/meshopt/KTX2 decoder | Real for shipped payloads; ignore exporters |
 | `THREE_MISSING_RESIZE_HANDLER` | LOW | Renderer created, no `resize` / `ResizeObserver` / `setSize` | Real if the canvas is not fixed-size |
+| `THREE_DEPRECATED_API` | MEDIUM | Uses `PCFSoftShadowMap` (removed r186), `useLegacyLights` (r165), or `CubeUVReflectionMapping` (r187) | Upgrade to `PCFShadowMap` + `shadow.radius`, physical lights, or `PMREMGenerator` |
+| `THREE_MISSING_OUTPUT_PASS` | MEDIUM | `EffectComposer` configured without `OutputPass` | Append `OutputPass` as the final pass |
+| `THREE_COMPOSER_8BIT_TARGET` | LOW | `UnrealBloomPass` with single-arg `EffectComposer(renderer)` | Pass `WebGLRenderTarget` with `THREE.HalfFloatType` |
+
+Note: `.mjs`, `.cjs`, and inline `<script>` blocks in `.html`/`.vue`/`.svelte` are scanned automatically.
 
 ---
 
@@ -1046,7 +1051,10 @@ whether a snippet in this document applies to the installed version.
 | Physically-correct lighting by default | r155 | `useLegacyLights` flag **removed in r165** |
 | `renderer.transmissionResolutionScale` | r175 | Halves the cost of `transmission` materials |
 | `BatchedMesh(maxInstanceCount, …)` | r166 | r159–r165 used `maxGeometryCount` as the first argument |
+| `RenderPipeline` (WebGPU) | r183+ | Replaces `PostProcessing` on `WebGPURenderer`; `EffectComposer` is WebGL-only |
 | `THREE.PCFSoftShadowMap` | **removed in r186** | Use `THREE.PCFShadowMap`; `shadow.radius` is the softness control |
+| `outputBufferType` / `screenSize` | r186 | Replaced `colorBufferType` and TSL `viewportResolution` |
+| `CubeUVReflectionMapping` | **removed in r187** | `PMREMGenerator` uses native cube RTs; `MeshPhysicalMaterial` adds EON rough diffuse BRDF; `WebGPURenderer.dispose()` is async |
 
 **How to re-verify in 30 seconds:**
 
@@ -1088,3 +1096,12 @@ python3 scripts/preflight_gltf_budget.py asset.glb --tier medium --fail-on high
 | `GLTF_NORMAL_MAP_WITHOUT_TANGENTS` | LOW | Normal map present but no `TANGENT` attribute |
 | `GLTF_PRIMITIVE_WITHOUT_MATERIAL` | LOW | A primitive with no material renders with the default material |
 | `GLTF_MESH_WITHOUT_MATERIAL` | LOW | A mesh with no material assigned |
+
+---
+
+## 16. Headless 3D Video Baking (`surgical-media` `threejs_bridge`)
+
+When polishing `surgical-media` `threejs_hybrid` / `threejs_3d` scenes:
+- **Virtual-clock stepping**: `runner.mjs` steps `tNorm` deterministically; never use `requestAnimationFrame` wall-clock deltas inside `params.threejs_script`.
+- **Shadow & HDR contracts**: Use `THREE.PCFShadowMap` + `shadow.bias` / `shadow.normalBias`, `HalfFloatType` `WebGLRenderTarget` when `UnrealBloomPass` is active, and `roomEnv.dispose()` + `pmrem.dispose()` after IBL baking.
+- **Asset tier**: Target `--tier medium` in `preflight_gltf_budget.py` for headless Chromium/SwiftShader bakes (`--tier high` for GPU/Blender).

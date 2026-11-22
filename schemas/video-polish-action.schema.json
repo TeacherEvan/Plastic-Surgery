@@ -1,0 +1,122 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/TeacherEvan/Plastic-Surgery/schemas/video-polish-action.schema.json",
+  "title": "PlasticSurgeryVideoPolishActionReport",
+  "type": "object",
+  "required": [
+    "tool_version",
+    "mode",
+    "input",
+    "output",
+    "look",
+    "dry_run",
+    "immutable_verified",
+    "immutable_sha256_before",
+    "immutable_sha256_after",
+    "before_score",
+    "after_score",
+    "changes",
+    "commands",
+    "qc_frames"
+  ],
+  "properties": {
+    "tool_version": {
+      "type": "string",
+      "minLength": 1
+    },
+    "mode": {
+      "type": "string",
+      "enum": [
+        "storyboard",
+        "video"
+      ]
+    },
+    "input": {
+      "type": "string",
+      "minLength": 1
+    },
+    "output": {
+      "type": "string",
+      "minLength": 1
+    },
+    "look": {
+      "type": "string",
+      "minLength": 1
+    },
+    "dry_run": {
+      "type": "boolean"
+    },
+    "immutable_verified": {
+      "type": "boolean"
+    },
+    "immutable_sha256_before": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "immutable_sha256_after": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "before_score": {
+      "type": "integer",
+      "minimum": 0,
+      "maximum": 100
+    },
+    "after_score": {
+      "type": [
+        "integer",
+        "null"
+      ],
+      "minimum": 0,
+      "maximum": 100
+    },
+    "changes": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/Change"
+      }
+    },
+    "commands": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "qc_frames": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    }
+  },
+  "$defs": {
+    "Change": {
+      "type": "object",
+      "required": [
+        "scope",
+        "action",
+        "detail"
+      ],
+      "properties": {
+        "scope": {
+          "type": "string",
+          "minLength": 1
+        },
+        "action": {
+          "type": "string",
+          "minLength": 1
+        },
+        "detail": {
+          "type": "string",
+          "minLength": 1
+        }
+      },
+      "unevaluatedProperties": false
+    }
+  },
+  "unevaluatedProperties": false
+}

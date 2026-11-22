@@ -37,7 +37,7 @@ import urllib.parse
 from pathlib import Path
 from typing import Any
 
-LINTER_VERSION = "1.4.0"
+LINTER_VERSION = "2.0.0"
 
 TIERS: dict[str, dict[str, int]] = {
     "low": {
@@ -331,7 +331,7 @@ class AssetAuditor:
                     triangles += count // 3
                 elif mode in STRIP_MODES:
                     triangles += max(0, count - 2)
-                vertices = max(vertices, self._accessor_count(gltf, pos))
+                vertices += self._accessor_count(gltf, pos)
                 if prim.get("material") is None:
                     untextured_primitives += 1
 
@@ -356,7 +356,12 @@ class AssetAuditor:
                 bv = views[vi]
                 start = int(bv.get("byteOffset", 0))
                 length = int(bv.get("byteLength", 0))
-                blob = binary or self._external_buffer(gltf)
+                buf_idx = int(bv.get("buffer", 0))
+                blob = (
+                    binary
+                    if (buf_idx == 0 and binary)
+                    else self._external_buffer(gltf, buf_idx)
+                )
                 return blob[start : start + length]
         return b""
 
@@ -626,11 +631,11 @@ class AssetAuditor:
         }
         return self.stats
 
-    def _external_buffer(self, gltf: dict[str, Any]) -> bytes:
+    def _external_buffer(self, gltf: dict[str, Any], buffer_idx: int = 0) -> bytes:
         buffers = gltf.get("buffers", [])
-        if not buffers:
+        if not (0 <= buffer_idx < len(buffers)):
             return b""
-        uri = buffers[0].get("uri")
+        uri = buffers[buffer_idx].get("uri")
         if not isinstance(uri, str) or not uri:
             return b""
         return self._safe_read_uri(uri)

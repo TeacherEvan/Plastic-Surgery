@@ -57,7 +57,7 @@ class SkillConformanceTests(unittest.TestCase):
 
         fm, body = _split_frontmatter(text)
         self.assertEqual(fm["name"], SKILL_NAME)
-        self.assertEqual(fm["version"], "1.4.0")
+        self.assertEqual(fm["version"], "2.0.0")
         desc = fm["description"]
         self.assertIsInstance(desc, str)
         self.assertLessEqual(len(desc), 60)
@@ -139,6 +139,21 @@ class SyncSkillTests(unittest.TestCase):
         self.assertTrue(
             (hermes_dest / "scripts" / "preflight_gltf_budget.py").is_file()
         )
+        self.assertTrue(
+            (hermes_dest / "scripts" / "preflight_video_polish.py").is_file()
+        )
+        self.assertTrue(
+            (hermes_dest / "scripts" / "polish_surgical_media.py").is_file()
+        )
+        self.assertTrue(
+            (hermes_dest / "references" / "video_post_production.md").is_file()
+        )
+        self.assertTrue(
+            (hermes_dest / "schemas" / "video-polish-report.schema.json").is_file()
+        )
+        self.assertTrue(
+            (hermes_dest / "schemas" / "video-polish-action.schema.json").is_file()
+        )
         self.assertFalse((hermes_dest / "scripts" / "conform.py").exists())
         self.assertFalse((hermes_dest / "scripts" / "sync-skill.sh").exists())
         self.assertFalse((hermes_dest / "Plastic-Surgery.md").exists())
@@ -150,6 +165,18 @@ class SyncSkillTests(unittest.TestCase):
             r_verify.returncode, 0, f"{r_verify.stdout}\n{r_verify.stderr}"
         )
         self.assertIn("Verified: 7 install(s) match the repo.", r_verify.stdout)
+
+    def test_installer_covers_all_runtime_assets_and_versions_match(self) -> None:
+        installer = (REPO / "install_plastic_surgery.sh").read_text(encoding="utf-8")
+        for p in sorted((REPO / "scripts").glob("preflight_*.py")) + sorted(
+            (REPO / "scripts").glob("polish_*.py")
+        ):
+            self.assertIn(p.name, installer)
+            self.assertIn('LINTER_VERSION = "2.0.0"', p.read_text(encoding="utf-8"))
+        for p in sorted((REPO / "references").glob("*.md")):
+            self.assertIn(p.name, installer)
+        for p in sorted((REPO / "schemas").glob("*.json")):
+            self.assertIn(p.name, installer)
 
 
 if __name__ == "__main__":

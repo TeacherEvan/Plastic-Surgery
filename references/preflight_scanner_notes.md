@@ -17,6 +17,14 @@ The `preflight_visual_lint.py` scanner is a regex-based static checker. It produ
 - **THREE_UNSET_OUTPUT_COLOR_SPACE** on three r152+ — sRGB output is the default. It is a LOW pin-the-value suggestion, not a defect.
 - **THREE_UNCOMPRESSED_GLTF** on an authoring tool or a test fixture where payload size does not matter.
 - **THREE_MISSING_RESIZE_HANDLER** on a fixed-size canvas (an offscreen render target, a thumbnail renderer) that legitimately never resizes.
+- **TRANSITION_ALL_HAZARD:** Replace `transition: all` with explicit compositor properties (`transform`, `opacity`, `border-color`).
+- **THREE_DEPRECATED_API / THREE_MISSING_OUTPUT_PASS / THREE_COMPOSER_8BIT_TARGET:** Upgrade `PCFSoftShadowMap` to `PCFShadowMap`, ensure `OutputPass` is last on `EffectComposer`, and use a `HalfFloatType` render target when `UnrealBloomPass` is active.
+
+## Video & `surgical-media` Polish Triage (`preflight_video_polish.py`)
+
+- **STORYBOARD_FLAT_STATIC_SCENE (LOW):** Intentional held poetic beats (`silent_beat: true`) may be ignored if deliberate; otherwise add subtle camera drift or an animated element.
+- **STORYBOARD_SAFE_ZONE_BREACH (MEDIUM):** In `9:16`, `--safe-mode strict` (`65..888, 288..1248`) is required for ad-safe/boosted placements; `--safe-mode organic` (`60..930, 180..1540`) is the minimum for organic Shorts/Reels/TikTok.
+- **VIDEO_LOUDNESS_OUT_OF_RANGE (MEDIUM):** Requires `--measure-audio` (`ffmpeg` `ebur128`); fix with two-pass `loudnorm=I=-14:TP=-1.5:LRA=11:linear=true`.
 
 ## Verification Workflow
 

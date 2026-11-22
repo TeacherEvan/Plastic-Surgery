@@ -284,3 +284,65 @@ section[id],
   scroll-margin-top: var(--sticky-header-height, 5rem);
 }
 ```
+
+---
+
+## 5. Modern CSS 2026 Motion & Fallback Guards
+
+### `@supports` sRGB Fallback + `oklch()` Upgrade
+
+```css
+:root {
+  --bg-surface: #0b0e18;
+  --text-main: #f1f4fa;
+}
+
+@supports (color: oklch(0 0 0)) {
+  :root {
+    --bg-surface: oklch(0.15 0.018 265);
+    --text-main: oklch(0.96 0.005 265);
+  }
+}
+```
+
+### Scroll-Driven Animations & View Transitions (Mandatory Reduced-Motion Guards)
+
+```css
+@view-transition {
+  navigation: auto;
+}
+
+.reveal-card {
+  animation: fade-in-scale linear both;
+  animation-timeline: view();
+  animation-range: entry 20% cover 40%;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .reveal-card {
+    animation: none;
+    opacity: 1;
+    transform: none;
+  }
+  ::view-transition-old(*),
+  ::view-transition-new(*) {
+    animation: none !important;
+  }
+}
+```
+
+---
+
+## 6. Verified `surgical-media` Perceptual Hex Palettes (Derived from `oklch()`)
+
+Use these drop-in 6-role hex palettes in `surgical-media` `style.palette` blocks. Every `ink/ground` (`>= 15:1`) and `accent/ground` (`>= 5.2:1`) pair is mathematically verified in sRGB:
+
+| Preset Name | `ground` | `ink` | `accent` | `accent2` | `shadow` | `highlight` | Verified Contrast (`ink` / `accent` / `accent2`) |
+| :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- |
+| `obsidian_telemetry` | `#0B0E18` | `#F1F4FA` | `#5E9EFF` | `#34D399` | `#05070D` | `#FFFFFF` | `17.48:1` / `7.16:1` / `10.02:1` |
+| `editorial_ivory` | `#F6F1E9` | `#1C1917` | `#B5382A` | `#1D5E7A` | `#D6CBBF` | `#FFFDF9` | `15.55:1` / `5.24:1` / `6.37:1` |
+| `noir_amber` | `#0E0D10` | `#EFECE6` | `#E5A93B` | `#7CA4D4` | `#050507` | `#FFF7E6` | `16.43:1` / `9.29:1` / `7.49:1` |
+| `blueprint_kinetic` | `#081428` | `#E6F0FF` | `#4FD1FF` | `#FFB84D` | `#030914` | `#FFFFFF` | `16.01:1` / `10.43:1` / `10.71:1` |
+
+> [!NOTE]
+> `surgical-media` light presets (`punchy_pop` `2.93:1`, `risograph` `2.59:1`) have low accent-on-ground contrast for small text; darken accent ink or place accent text inside a dark pill/outline.

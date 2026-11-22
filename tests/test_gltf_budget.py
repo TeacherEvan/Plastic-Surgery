@@ -438,6 +438,28 @@ class TextureMeasurement(unittest.TestCase):
         self.assertEqual(webp_size(make_webp_vp8l(128, 96)), (128, 96))
         self.assertEqual(webp_size(make_webp_vp8x(1024, 512)), (1024, 512))
 
+    def test_multi_buffer_gltf_reads_second_buffer_and_blocks_traversal(self) -> None:
+        png = make_png(128, 64)
+        with tempfile.TemporaryDirectory() as td:
+            (Path(td) / "buf1.bin").write_bytes(png)
+            gltf = base_gltf(10)
+            gltf["buffers"] = [
+                {"byteLength": 0},
+                {"uri": "buf1.bin", "byteLength": len(png)},
+            ]
+            gltf["bufferViews"] = [
+                {"buffer": 1, "byteOffset": 0, "byteLength": len(png)}
+            ]
+            gltf["images"] = [{"mimeType": "image/png", "bufferView": 0}]
+            gltf["textures"] = [{"source": 0}]
+            asset_path = Path(td) / "scene.gltf"
+            asset_path.write_text(json.dumps(gltf), encoding="utf-8")
+            loaded, bin_chunk = load_asset(str(asset_path))
+            auditor = AssetAuditor(str(asset_path), "medium")
+            stats = auditor.audit(loaded, bin_chunk)
+            self.assertEqual(stats["textures_detail"][0]["width"], 128)
+            self.assertEqual(stats["textures_detail"][0]["height"], 64)
+
 
 class CliGate(unittest.TestCase):
     def _run(self, payload: bytes, *args: str) -> subprocess.CompletedProcess[str]:

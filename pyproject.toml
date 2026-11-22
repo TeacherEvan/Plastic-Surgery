@@ -1,7 +1,7 @@
 [project]
 name = "plastic-surgery-skill"
-version = "1.4.0"
-description = "Tactile 2D UI and 3D Three.js visual overhaul skill with zero-mutation static and glTF preflight linters."
+version = "2.0.0"
+description = "Tactile 2D UI, 3D Three.js, and video/storyboard visual overhaul skill with zero-mutation static, glTF, and video preflight linters."
 readme = "README.md"
 license = { text = "MIT" }
 requires-python = ">=3.10"

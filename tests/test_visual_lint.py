@@ -507,6 +507,66 @@ class ThreeJsRules(unittest.TestCase):
         )
         self.assertEqual([c for c in codes if c.startswith("THREE_")], [])
 
+    def test_mjs_and_inline_html_threejs_rules(self) -> None:
+        codes = self._codes(
+            {
+                "scene.mjs": (
+                    "import * as THREE from 'three';\n"
+                    "const sun = new THREE.DirectionalLight(0xffffff, 2);\n"
+                    "sun.castShadow = true;\n"
+                ),
+                "stage.html": (
+                    "<html><body><script type='module'>\n"
+                    "import * as THREE from 'three';\n"
+                    "const renderer = new THREE.WebGLRenderer();\n"
+                    "renderer.shadowMap.type = THREE.PCFSoftShadowMap;\n"
+                    "const composer = new EffectComposer(renderer);\n"
+                    "composer.addPass(new UnrealBloomPass());\n"
+                    "</script></body></html>\n"
+                ),
+            }
+        )
+        self.assertIn("THREE_MISSING_SHADOW_BIAS", codes)
+        self.assertIn("THREE_DEPRECATED_API", codes)
+        self.assertIn("THREE_MISSING_OUTPUT_PASS", codes)
+        self.assertIn("THREE_COMPOSER_8BIT_TARGET", codes)
+
+    def test_transition_all_float_blur_and_modern_css_motion(self) -> None:
+        r = self._scan(
+            {
+                "a.css": (
+                    ".btn { transition: all 0.2s ease; backdrop-filter: blur(20.5px); }\n"
+                    ".rem { backdrop-filter: blur(1.5rem); }\n"
+                    ".ok { backdrop-filter: blur(12.5px); }\n"
+                    "@view-transition { navigation: auto; }\n"
+                    ".reveal { animation-timeline: view(); }\n"
+                )
+            }
+        )
+        codes = [d["code"] for d in r["defects"]]
+        self.assertIn("TRANSITION_ALL_HAZARD", codes)
+        self.assertEqual(codes.count("EXCESSIVE_BLUR_OVERDRAW"), 2)
+        self.assertIn("MISSING_REDUCED_MOTION_GUARD", codes)
+
+    def test_wcag_outline_none_and_threejs_room_env_and_clock_delta(self) -> None:
+        r = self._scan(
+            {
+                "a.css": (
+                    ".bad:focus-visible { outline: none; }\n"
+                    ".good:focus-visible { outline: none; box-shadow: 0 0 0 2px #5e9eff; }\n"
+                ),
+                "b.ts": (
+                    "import * as THREE from 'three';\n"
+                    "const env = pmrem.fromScene(new RoomEnvironment(), 0.04).texture;\n"
+                    "const dt = clock.getDelta();\n"
+                ),
+            }
+        )
+        codes = [d["code"] for d in r["defects"]]
+        self.assertEqual(codes.count("WCAG_OUTLINE_NONE_WITHOUT_REPLACEMENT"), 1)
+        self.assertIn("THREE_MISSING_ROOM_ENV_DISPOSE", codes)
+        self.assertIn("THREE_UNBOUNDED_CLOCK_DELTA", codes)
+
 
 class CliGate(unittest.TestCase):
     def _run(

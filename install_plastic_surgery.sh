@@ -56,18 +56,25 @@ chmod +x "$HERMES_SKILL_DIR/scripts/preflight_visual_lint.py"
 fetch_file "$HERMES_SKILL_DIR/scripts/preflight_gltf_budget.py" "${SCRIPT_DIR:-$RAW_BASE}/scripts/preflight_gltf_budget.py"
 chmod +x "$HERMES_SKILL_DIR/scripts/preflight_gltf_budget.py"
 
+fetch_file "$HERMES_SKILL_DIR/scripts/preflight_video_polish.py" "${SCRIPT_DIR:-$RAW_BASE}/scripts/preflight_video_polish.py"
+chmod +x "$HERMES_SKILL_DIR/scripts/preflight_video_polish.py"
+
+fetch_file "$HERMES_SKILL_DIR/scripts/polish_surgical_media.py" "${SCRIPT_DIR:-$RAW_BASE}/scripts/polish_surgical_media.py"
+chmod +x "$HERMES_SKILL_DIR/scripts/polish_surgical_media.py"
+
 # Reference documentation
 for ref in \
     tactile_tokens_and_surfaces.md \
     kinetic_physics_and_springs.md \
     threejs_3d_asset_pipeline.md \
     preflight_scanner_notes.md \
-    phase_playbooks_and_checklists.md; do
+    phase_playbooks_and_checklists.md \
+    video_post_production.md; do
     fetch_file "$HERMES_SKILL_DIR/references/$ref" "${SCRIPT_DIR:-$RAW_BASE}/references/$ref"
 done
 
 # JSON Schemas (Draft 2020-12)
-for schema in visual-lint-report.schema.json gltf-budget-report.schema.json; do
+for schema in visual-lint-report.schema.json gltf-budget-report.schema.json video-polish-report.schema.json video-polish-action.schema.json; do
     fetch_file "$HERMES_SKILL_DIR/schemas/$schema" "${SCRIPT_DIR:-$RAW_BASE}/schemas/$schema"
 done
 

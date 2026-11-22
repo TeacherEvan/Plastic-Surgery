@@ -145,3 +145,19 @@ Same zero-regression mandate, different instrument: the skin is print CSS plus a
 5. **Derive graphics from real facts:** Proportional tenure bars or real metrics earn space; stock icons do not. Show the arithmetic in the delivery note.
 6. **Verify rendered graphics numerically:** Measure pixel runs against tracks before editing; never adjust correct geometry on an unmeasured reviewer claim.
 7. **Zero trailing footer-only pages:** Verify page count with `pdfinfo`; tighten margins or reference blocks instead of shipping a blank overflow page.
+
+---
+
+## 5. Video Surgery Variant (`surgical-media` & Rendered MP4)
+
+- **Mode Selection**: Prefer **Mode A (Storyboard & 3D Pre-Render Surgery)** when `storyboard.json` exists; use **Mode B (Single-Pass FFmpeg Finishing)** when only an MP4 exists or for final platform adaptation.
+- **Blueprint Additions**: Record Mode A vs Mode B, Target Platform & Safe Box (`organic` vs `strict`), and Preserved Storyboard/Audio/Credits Contract.
+
+### Video Post-Op Verification Checklist
+
+- [ ] **Preflight Clean**: `preflight_video_polish.py <target> --fail-on high` exits `0`.
+- [ ] **Timing & Immutables Preserved**: `start_sec`, `duration_sec`, `vo_wav`, `words[]`, `sfx_events[]`, and `|duration - storyboard| <= 150 ms` untouched.
+- [ ] **Codec & Color**: `h264` High@4.2, `yuv420p`, CFR, explicit `bt709` tags, and `+faststart` (`moov` before `mdat`).
+- [ ] **Audio Mastering**: AAC 48 kHz stereo, `-14.0 +/- 1.0 LUFS` integrated, `<= -1.0 dBTP` true peak, zero unintentional dead air `> 0.6 s`.
+- [ ] **Safe Zones & Attribution**: All captions, faces, and `CREDITS.md` / `attribution` badges sit inside the target safe box.
+- [ ] **3D / `surgical-media` Gates**: Custom `.mjs` scripts pass `preflight_visual_lint.py`; `.glb` assets pass `preflight_gltf_budget.py`; `surgical-media/scripts/qc_gate.py` exits `0`.
